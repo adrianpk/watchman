@@ -1,3 +1,7 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/adrianpk/watchman.svg)](https://pkg.go.dev/github.com/adrianpk/watchman)
+[![CI](https://github.com/adrianpk/watchman/actions/workflows/ci.yml/badge.svg)](https://github.com/adrianpk/watchman/actions)
+[![codecov](https://codecov.io/gh/adrianpk/watchman/branch/main/graph/badge.svg)](https://codecov.io/gh/adrianpk/watchman)
+
 # Watchman
 
 ```
