@@ -13,6 +13,13 @@ Local configuration can relax or tighten global rules per project.
 
 ## Quick Setup
 
+Configure Claude Code hook with the `setup` command:
+
+```bash
+# Add watchman hook to ~/.claude/settings.json
+watchman setup
+```
+
 Create config files with the `init` command:
 
 ```bash
@@ -23,7 +30,7 @@ watchman init
 watchman init --local
 ```
 
-If a config file already exists, the command does nothing.
+Both commands are idempotent - they do nothing if already configured.
 
 ## Structure
 
@@ -57,7 +64,7 @@ Semantic rules apply to ALL tools. Blocking a rule blocks the *intent*, regardle
 | Rule | Key | Description | Status |
 |------|-----|-------------|--------|
 | Confine to workspace | `workspace` | No access outside the project directory | Implemented |
-| Scope to defined files | `scope` | Limit modifications to explicitly declared files | Planned |
+| Scope to defined files | `scope` | Limit modifications to explicitly declared files | Implemented |
 | Require incremental changes | `incremental` | Reject large-scale rewrites in favor of small diffs | Planned |
 | Preserve key invariants | `invariants` | Block changes that violate structural rules | Planned |
 | Match established patterns | `patterns` | Ensure new code follows existing conventions | Planned |

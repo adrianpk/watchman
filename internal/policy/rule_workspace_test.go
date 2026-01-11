@@ -254,7 +254,6 @@ func TestIsAllowed(t *testing.T) {
 	}
 }
 
-
 func TestEvaluateWithBlockList(t *testing.T) {
 	rule := &ConfineToWorkspace{
 		Block: []string{".env"},

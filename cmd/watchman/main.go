@@ -37,6 +37,9 @@ func main() {
 		case "init":
 			runInit()
 			return
+		case "setup":
+			runSetup()
+			return
 		}
 	}
 
@@ -255,6 +258,96 @@ tools:
 	}
 
 	fmt.Printf("Created config: %s\n", configPath)
+}
+
+func runSetup() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fatal("cannot get home directory: %v", err)
+	}
+
+	claudeDir := filepath.Join(home, ".claude")
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	watchmanPath := filepath.Join(home, "go", "bin", "watchman")
+
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		fatal("cannot create .claude directory: %v", err)
+	}
+
+	settings := make(map[string]interface{})
+
+	data, err := os.ReadFile(settingsPath)
+	if err == nil && len(data) > 0 {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			fatal("cannot parse settings.json: %v", err)
+		}
+	}
+
+	hooks, ok := settings["hooks"].(map[string]interface{})
+	if !ok {
+		hooks = make(map[string]interface{})
+		settings["hooks"] = hooks
+	}
+
+	preToolUse, ok := hooks["PreToolUse"].([]interface{})
+	if !ok {
+		preToolUse = []interface{}{}
+	}
+
+	if hasWatchmanHook(preToolUse, watchmanPath) {
+		fmt.Println("Watchman hook already configured")
+		return
+	}
+
+	watchmanHook := map[string]interface{}{
+		"matcher": "*",
+		"hooks": []interface{}{
+			map[string]interface{}{
+				"type":    "command",
+				"command": watchmanPath,
+			},
+		},
+	}
+
+	hooks["PreToolUse"] = []interface{}{watchmanHook}
+
+	output, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		fatal("cannot marshal settings: %v", err)
+	}
+
+	if err := os.WriteFile(settingsPath, output, 0644); err != nil {
+		fatal("cannot write settings.json: %v", err)
+	}
+
+	fmt.Printf("Configured hook: %s\n", settingsPath)
+	fmt.Println("Run 'watchman init' to create watchman config")
+}
+
+func hasWatchmanHook(preToolUse []interface{}, watchmanPath string) bool {
+	for _, entry := range preToolUse {
+		e, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		hooksList, ok := e["hooks"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, h := range hooksList {
+			if h == "watchman" {
+				return true
+			}
+			if hm, ok := h.(map[string]interface{}); ok {
+				if cmd, ok := hm["command"].(string); ok {
+					if strings.Contains(cmd, "watchman") {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func allow() {

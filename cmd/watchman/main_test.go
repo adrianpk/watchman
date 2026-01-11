@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/adrianpk/watchman/internal/config"
 )
 
 var binaryPath string
@@ -256,5 +258,226 @@ func TestWatchmanInvalidJSON(t *testing.T) {
 
 	if stderr == "" {
 		t.Error("expected error message for invalid JSON")
+	}
+}
+
+func TestHasWatchmanHook(t *testing.T) {
+	tests := []struct {
+		name       string
+		preToolUse []interface{}
+		want       bool
+	}{
+		{
+			name:       "empty list",
+			preToolUse: []interface{}{},
+			want:       false,
+		},
+		{
+			name: "short form watchman",
+			preToolUse: []interface{}{
+				map[string]interface{}{
+					"matcher": "*",
+					"hooks":   []interface{}{"watchman"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "long form watchman",
+			preToolUse: []interface{}{
+				map[string]interface{}{
+					"matcher": "Bash",
+					"hooks": []interface{}{
+						map[string]interface{}{
+							"type":    "command",
+							"command": "/home/user/go/bin/watchman",
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "other hook",
+			preToolUse: []interface{}{
+				map[string]interface{}{
+					"matcher": "*",
+					"hooks":   []interface{}{"other-tool"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "invalid entry",
+			preToolUse: []interface{}{
+				"not a map",
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasWatchmanHook(tt.preToolUse, "/any/path")
+			if got != tt.want {
+				t.Errorf("hasWatchmanHook() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsToolBlocked(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Block: []string{"Bash", "Write"},
+		},
+	}
+
+	tests := []struct {
+		tool    string
+		blocked bool
+	}{
+		{"Bash", true},
+		{"bash", true},
+		{"Write", true},
+		{"Read", false},
+		{"Edit", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tool, func(t *testing.T) {
+			got := isToolBlocked(cfg, tt.tool)
+			if got != tt.blocked {
+				t.Errorf("isToolBlocked(%q) = %v, want %v", tt.tool, got, tt.blocked)
+			}
+		})
+	}
+}
+
+func TestIsToolAllowed(t *testing.T) {
+	tests := []struct {
+		name    string
+		allow   []string
+		tool    string
+		allowed bool
+	}{
+		{
+			name:    "empty allow list allows all",
+			allow:   []string{},
+			tool:    "Bash",
+			allowed: true,
+		},
+		{
+			name:    "tool in allow list",
+			allow:   []string{"Read", "Edit"},
+			tool:    "Read",
+			allowed: true,
+		},
+		{
+			name:    "tool not in allow list",
+			allow:   []string{"Read", "Edit"},
+			tool:    "Bash",
+			allowed: false,
+		},
+		{
+			name:    "case insensitive",
+			allow:   []string{"Read"},
+			tool:    "read",
+			allowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Tools: config.ToolsConfig{Allow: tt.allow},
+			}
+			got := isToolAllowed(cfg, tt.tool)
+			if got != tt.allowed {
+				t.Errorf("isToolAllowed(%q) = %v, want %v", tt.tool, got, tt.allowed)
+			}
+		})
+	}
+}
+
+func TestIsCommandBlocked(t *testing.T) {
+	cfg := &config.Config{
+		Commands: config.CommandsConfig{
+			Block: []string{"sudo", "rm -rf"},
+		},
+	}
+
+	tests := []struct {
+		cmd     string
+		blocked string
+	}{
+		{"sudo apt install", "sudo"},
+		{"rm -rf /", "rm -rf"},
+		{"ls -la", ""},
+		{"echo hello", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			got := isCommandBlocked(cfg, tt.cmd)
+			if got != tt.blocked {
+				t.Errorf("isCommandBlocked(%q) = %q, want %q", tt.cmd, got, tt.blocked)
+			}
+		})
+	}
+}
+
+func TestExtractPaths(t *testing.T) {
+	tests := []struct {
+		name      string
+		toolName  string
+		toolInput map[string]interface{}
+		wantLen   int
+	}{
+		{
+			name:      "bash command",
+			toolName:  "Bash",
+			toolInput: map[string]interface{}{"command": "cat file.txt"},
+			wantLen:   1,
+		},
+		{
+			name:      "read file_path",
+			toolName:  "Read",
+			toolInput: map[string]interface{}{"file_path": "src/main.go"},
+			wantLen:   1,
+		},
+		{
+			name:      "write file_path",
+			toolName:  "Write",
+			toolInput: map[string]interface{}{"file_path": "output.txt", "content": "data"},
+			wantLen:   1,
+		},
+		{
+			name:      "glob with path and pattern",
+			toolName:  "Glob",
+			toolInput: map[string]interface{}{"path": "src", "pattern": "*.go"},
+			wantLen:   2,
+		},
+		{
+			name:      "grep with path",
+			toolName:  "Grep",
+			toolInput: map[string]interface{}{"pattern": "TODO", "path": "src"},
+			wantLen:   1,
+		},
+		{
+			name:      "unknown tool",
+			toolName:  "WebSearch",
+			toolInput: map[string]interface{}{"query": "test"},
+			wantLen:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractPaths(tt.toolName, tt.toolInput)
+			if len(got) != tt.wantLen {
+				t.Errorf("extractPaths() returned %d paths, want %d: %v", len(got), tt.wantLen, got)
+			}
+		})
 	}
 }
