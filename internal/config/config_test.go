@@ -141,3 +141,92 @@ func TestAppendUnique(t *testing.T) {
 		t.Errorf("len(result) = %d, want 3", len(result))
 	}
 }
+
+func TestLoadWithLocalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalWd, _ := os.Getwd()
+	defer os.Chdir(originalWd)
+	os.Chdir(tmpDir)
+
+	content := `version: 1
+rules:
+  workspace: false
+`
+	os.WriteFile(filepath.Join(tmpDir, ".watchman.yml"), []byte(content), 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Rules.Workspace {
+		t.Error("Rules.Workspace should be false from local config")
+	}
+}
+
+func TestLoadWithoutConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalWd, _ := os.Getwd()
+	defer os.Chdir(originalWd)
+	os.Chdir(tmpDir)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Rules.Workspace {
+		t.Error("Rules.Workspace should be true by default")
+	}
+}
+
+func TestLoadFromInvalidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yml")
+
+	os.WriteFile(configPath, []byte("invalid: yaml: content:"), 0644)
+
+	cfg := Default()
+	err := cfg.loadFrom(configPath)
+
+	if err == nil {
+		t.Error("loadFrom should return error for invalid YAML")
+	}
+}
+
+func TestLoadFromNonexistentFile(t *testing.T) {
+	cfg := Default()
+	err := cfg.loadFrom("/nonexistent/path/config.yml")
+
+	if err == nil {
+		t.Error("loadFrom should return error for nonexistent file")
+	}
+}
+
+func TestGlobalConfigPath(t *testing.T) {
+	path := GlobalConfigPath()
+
+	if path == "" {
+		t.Error("GlobalConfigPath should return non-empty path")
+	}
+
+	home, _ := os.UserHomeDir()
+	expected := filepath.Join(home, ".config", "watchman", "config.yml")
+	if path != expected {
+		t.Errorf("GlobalConfigPath = %s, want %s", path, expected)
+	}
+}
+
+func TestLocalConfigPath(t *testing.T) {
+	path := localConfigPath()
+
+	if path == "" {
+		t.Error("localConfigPath should return non-empty path")
+	}
+
+	cwd, _ := os.Getwd()
+	expected := filepath.Join(cwd, ".watchman.yml")
+	if path != expected {
+		t.Errorf("localConfigPath = %s, want %s", path, expected)
+	}
+}

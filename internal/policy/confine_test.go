@@ -1,8 +1,11 @@
 package policy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/adrianpk/watchman/internal/config"
 	"github.com/adrianpk/watchman/internal/parser"
 )
 
@@ -173,5 +176,168 @@ func TestViolatesWorkspaceBoundary(t *testing.T) {
 				t.Errorf("ViolatesWorkspaceBoundary(%q) = %v, want %v", tt.path, got, tt.violates)
 			}
 		})
+	}
+}
+
+func TestNewConfineToWorkspace(t *testing.T) {
+	cfg := &config.WorkspaceConfig{
+		Allow: []string{"/tmp"},
+		Block: []string{".env"},
+	}
+
+	rule := NewConfineToWorkspace(cfg)
+
+	if len(rule.Allow) != 1 || rule.Allow[0] != "/tmp" {
+		t.Errorf("Allow = %v, want [/tmp]", rule.Allow)
+	}
+	if len(rule.Block) != 1 || rule.Block[0] != ".env" {
+		t.Errorf("Block = %v, want [.env]", rule.Block)
+	}
+}
+
+func TestNewConfineToWorkspaceNil(t *testing.T) {
+	rule := NewConfineToWorkspace(nil)
+
+	if rule.Allow != nil && len(rule.Allow) != 0 {
+		t.Errorf("Allow should be empty for nil config")
+	}
+	if rule.Block != nil && len(rule.Block) != 0 {
+		t.Errorf("Block should be empty for nil config")
+	}
+}
+
+func TestIsBlocked(t *testing.T) {
+	rule := &ConfineToWorkspace{
+		Block: []string{".env", "secrets/"},
+	}
+
+	tests := []struct {
+		path    string
+		blocked bool
+	}{
+		{".env", true},
+		{"secrets/key.pem", true},
+		{"config.yml", false},
+		{"src/main.go", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := rule.isBlocked(tt.path)
+			if got != tt.blocked {
+				t.Errorf("isBlocked(%q) = %v, want %v", tt.path, got, tt.blocked)
+			}
+		})
+	}
+}
+
+func TestIsAllowed(t *testing.T) {
+	rule := &ConfineToWorkspace{
+		Allow: []string{"/tmp/", "/var/cache/"},
+	}
+
+	tests := []struct {
+		path    string
+		allowed bool
+	}{
+		{"/tmp/test.txt", true},
+		{"/var/cache/data", true},
+		{"/etc/passwd", false},
+		{"/root/.ssh", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := rule.isAllowed(tt.path)
+			if got != tt.allowed {
+				t.Errorf("isAllowed(%q) = %v, want %v", tt.path, got, tt.allowed)
+			}
+		})
+	}
+}
+
+func TestMatchPath(t *testing.T) {
+	home, _ := os.UserHomeDir()
+
+	tests := []struct {
+		path    string
+		pattern string
+		matches bool
+	}{
+		{"/tmp/file", "/tmp/file", true},
+		{"/tmp/file", "/tmp/", true},
+		{"/tmp", "/tmp/", true},
+		{"/tmp/subdir/file", "/tmp/", true},
+		{"/var/file", "/tmp/", false},
+		{filepath.Join(home, ".ssh/id_rsa"), "~/.ssh/", true},
+		{"/tmp/data", "/tmp", true},
+	}
+
+	for _, tt := range tests {
+		name := tt.path + " vs " + tt.pattern
+		t.Run(name, func(t *testing.T) {
+			got := matchPath(tt.path, tt.pattern)
+			if got != tt.matches {
+				t.Errorf("matchPath(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.matches)
+			}
+		})
+	}
+}
+
+func TestIsAlwaysProtected(t *testing.T) {
+	home, _ := os.UserHomeDir()
+
+	tests := []struct {
+		path      string
+		protected bool
+	}{
+		{filepath.Join(home, ".claude", "settings.json"), true},
+		{filepath.Join(home, ".ssh", "id_rsa"), true},
+		{filepath.Join(home, ".aws", "credentials"), true},
+		{".watchman.yml", true},
+		{"/some/path/.watchman.yml", true},
+		{"README.md", false},
+		{"/tmp/test.txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := IsAlwaysProtected(tt.path)
+			if got != tt.protected {
+				t.Errorf("IsAlwaysProtected(%q) = %v, want %v", tt.path, got, tt.protected)
+			}
+		})
+	}
+}
+
+func TestIsAlwaysProtectedEmpty(t *testing.T) {
+	if IsAlwaysProtected("") {
+		t.Error("empty path should not be protected")
+	}
+}
+
+func TestEvaluateWithBlockList(t *testing.T) {
+	rule := &ConfineToWorkspace{
+		Block: []string{".env"},
+	}
+
+	cmd := parser.Command{Args: []string{".env"}}
+	decision := rule.Evaluate(cmd)
+
+	if decision.Allowed {
+		t.Error("should block .env file")
+	}
+}
+
+func TestEvaluateWithAllowList(t *testing.T) {
+	rule := &ConfineToWorkspace{
+		Allow: []string{"/tmp/"},
+	}
+
+	cmd := parser.Command{Args: []string{"/tmp/test.txt"}}
+	decision := rule.Evaluate(cmd)
+
+	if !decision.Allowed {
+		t.Error("should allow /tmp/test.txt")
 	}
 }
