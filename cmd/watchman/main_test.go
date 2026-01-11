@@ -31,7 +31,11 @@ func TestMain(m *testing.M) {
 func runWatchman(t *testing.T, input string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
+	// Run in temp dir without .watchman.yml to use default config
+	tmpDir := t.TempDir()
+
 	cmd := exec.Command(binaryPath)
+	cmd.Dir = tmpDir
 	cmd.Stdin = bytes.NewBufferString(input)
 
 	var outBuf, errBuf bytes.Buffer
@@ -99,7 +103,7 @@ func TestWatchmanBlocksAbsolutePaths(t *testing.T) {
 	}{
 		{"rm root", "rm -rf /"},
 		{"cat etc passwd", "cat /etc/passwd"},
-		{"env absolute", "GOMODCACHE=/tmp/mod go test ./..."},
+		{"env absolute", "GOMODCACHE=/opt/cache go test ./..."},
 	}
 
 	for _, tt := range tests {
@@ -192,7 +196,7 @@ func TestWatchmanAllowsReadRelativePath(t *testing.T) {
 }
 
 func TestWatchmanBlocksWriteAbsolutePath(t *testing.T) {
-	input := `{"hook_type":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/evil.sh","content":"bad"}}`
+	input := `{"hook_type":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/opt/evil.sh","content":"bad"}}`
 	_, stderr, exitCode := runWatchman(t, input)
 
 	if exitCode != 2 {

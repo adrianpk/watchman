@@ -32,7 +32,7 @@ func Parse(cmd string) Command {
 		return result
 	}
 
-	tokens := tokenize(cmd)
+	tokens := tokenize(stripHeredocs(cmd))
 	if len(tokens) == 0 {
 		return result
 	}
@@ -53,7 +53,6 @@ func Parse(cmd string) Command {
 		return result
 	}
 
-	// Program name
 	result.Program = tokens[idx]
 	idx++
 
@@ -65,7 +64,6 @@ func Parse(cmd string) Command {
 		}
 	}
 
-	// Parse remaining tokens as flags and args
 	for idx < len(tokens) {
 		token := tokens[idx]
 		if strings.HasPrefix(token, "-") {

@@ -1,0 +1,22 @@
+# Local config for watchman development
+# Disables restrictions for testing
+version: 1
+
+rules:
+  workspace: false
+  scope: false
+  incremental: false
+  invariants: false
+  patterns: false
+  boundaries: false
+
+workspace:
+  allow: []
+  block: []
+
+commands:
+  block: []
+
+tools:
+  allow: []
+  block: []

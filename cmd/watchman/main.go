@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/adrianpk/watchman/internal/config"
 	"github.com/adrianpk/watchman/internal/parser"
 	"github.com/adrianpk/watchman/internal/policy"
 )
@@ -29,9 +31,24 @@ var filesystemTools = map[string]bool{
 }
 
 func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		fatal("cannot load config: %v", err)
+	}
+
 	var input hookInput
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
 		fatal("cannot decode input: %v", err)
+	}
+
+	if isToolBlocked(cfg, input.ToolName) {
+		deny("tool is blocked by configuration: " + input.ToolName)
+		return
+	}
+
+	if !isToolAllowed(cfg, input.ToolName) {
+		deny("tool is not in allowed list: " + input.ToolName)
+		return
 	}
 
 	if !filesystemTools[input.ToolName] {
@@ -39,15 +56,68 @@ func main() {
 		return
 	}
 
+	if input.ToolName == "Bash" {
+		if cmd, ok := input.ToolInput["command"].(string); ok {
+			if blocked := isCommandBlocked(cfg, cmd); blocked != "" {
+				deny("command is blocked by configuration: " + blocked)
+				return
+			}
+		}
+	}
+
 	paths := extractPaths(input.ToolName, input.ToolInput)
 	for _, p := range paths {
-		if policy.ViolatesWorkspaceBoundary(p) {
-			deny("cannot access paths outside the project workspace")
+		if policy.IsAlwaysProtected(p) {
+			deny("path is protected and cannot be accessed. User must perform this action manually.")
 			return
 		}
 	}
 
+	if cfg.Rules.Workspace {
+		rule := policy.NewConfineToWorkspace(&cfg.Workspace)
+		paths := extractPaths(input.ToolName, input.ToolInput)
+		for _, p := range paths {
+			parsed := parser.Command{Args: []string{p}}
+			decision := rule.Evaluate(parsed)
+			if !decision.Allowed {
+				deny(decision.Reason)
+				return
+			}
+		}
+	}
+
 	allow()
+}
+
+func isToolBlocked(cfg *config.Config, tool string) bool {
+	for _, t := range cfg.Tools.Block {
+		if strings.EqualFold(t, tool) {
+			return true
+		}
+	}
+	return false
+}
+
+func isToolAllowed(cfg *config.Config, tool string) bool {
+	// If no allowlist, all tools are allowed
+	if len(cfg.Tools.Allow) == 0 {
+		return true
+	}
+	for _, t := range cfg.Tools.Allow {
+		if strings.EqualFold(t, tool) {
+			return true
+		}
+	}
+	return false
+}
+
+func isCommandBlocked(cfg *config.Config, cmd string) string {
+	for _, pattern := range cfg.Commands.Block {
+		if strings.Contains(cmd, pattern) {
+			return pattern
+		}
+	}
+	return ""
 }
 
 func extractPaths(toolName string, toolInput map[string]interface{}) []string {
