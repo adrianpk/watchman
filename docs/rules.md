@@ -304,24 +304,148 @@ Warnings give the agent runway to finish current work gracefully. Blocking force
 
 ---
 
+## Hooks (External Hooks)
+
+**Status**: Implemented
+
+Execute external programs to enforce custom rules. This is the extensibility mechanism for defining project-specific invariants, patterns, and boundaries.
+
+### Purpose
+
+Watchman provides built-in rules, but every project has unique requirements. External hooks allow you to:
+- Define custom validation logic in any language
+- Integrate with project-specific tools (linters, analyzers)
+- Enforce domain-specific constraints
+- Build reusable rule packages
+
+### Configuration
+
+```yaml
+hooks:
+  - name: "no-direct-db-access"
+    command: "check-db-access"
+    tools: ["Write", "Edit"]
+    paths: ["src/handlers/**/*.go"]
+    timeout: 5s
+    on_error: allow
+```
+
+### Hook Protocol
+
+**Input (stdin, JSON):**
+```json
+{
+  "tool_name": "Write",
+  "tool_input": {"file_path": "src/main.go", "content": "..."},
+  "paths": ["src/main.go"],
+  "working_dir": "/path/to/project"
+}
+```
+
+**Output (stdout, JSON):**
+```json
+{"decision": "deny", "reason": "Direct database access in handler layer"}
+```
+
+Or use exit codes:
+- Exit 0 = allow
+- Exit 1 = deny (stderr = reason)
+
+**Decision Values:**
+| Decision | Effect |
+|----------|--------|
+| `allow` | Permits the action |
+| `deny` | Blocks the action (reason shown to user) |
+| `advise` | Permits but shows warning |
+
+### Matching
+
+Hooks are triggered when BOTH conditions match:
+
+| Field | Description |
+|-------|-------------|
+| `tools` | Tools that trigger this hook (required) |
+| `paths` | File patterns that trigger this hook (optional) |
+
+If `paths` is empty, the hook triggers for any path with a matching tool.
+
+### Error Handling
+
+| `on_error` Value | Behavior When Hook Fails |
+|------------------|--------------------------|
+| `allow` (default) | Permit the action, show warning |
+| `deny` | Block the action |
+
+### Example: Vendor Readonly
+
+```bash
+#!/bin/bash
+# hooks/vendor-readonly.sh
+echo '{"decision":"deny","reason":"vendor directory is readonly"}'
+```
+
+```yaml
+hooks:
+  - name: "vendor-readonly"
+    command: "./hooks/vendor-readonly.sh"
+    tools: ["Write", "Edit"]
+    paths: ["vendor/**"]
+```
+
+### Example: Custom Linter
+
+```bash
+#!/bin/bash
+# hooks/lint-check.sh
+# Receives JSON on stdin, can parse with jq
+input=$(cat)
+file_path=$(echo "$input" | jq -r '.paths[0]')
+
+if ! golint "$file_path" > /dev/null 2>&1; then
+    echo '{"decision":"advise","warning":"Lint issues detected"}'
+else
+    echo '{"decision":"allow"}'
+fi
+```
+
+### All Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `name` | string | required | Unique identifier for the hook |
+| `command` | string | required | Path to executable |
+| `args` | []string | [] | Arguments to pass to command |
+| `tools` | []string | required | Tools that trigger this hook |
+| `paths` | []string | [] | Glob patterns (empty = all paths) |
+| `timeout` | duration | 5s | Max execution time |
+| `on_error` | string | allow | Behavior on failure: allow, deny |
+
+---
+
 ## Invariants
 
-**Status**: Planned
+**Status**: Implemented via Hooks
 
-Blocks changes that violate structural rules defined for the project.
+Structural rules are now implemented through the external hooks system. Define custom hooks that validate architectural constraints.
+
+See [Hooks](#hooks-external-hooks) for implementation details.
 
 ---
 
 ## Patterns
 
-**Status**: Planned
+**Status**: Planned (can be implemented via Hooks)
 
 Ensures new code follows existing conventions and patterns.
+
+Can be partially implemented using external hooks that analyze code against patterns.
 
 ---
 
 ## Boundaries
 
-**Status**: Planned
+**Status**: Planned (can be implemented via Hooks)
 
 Respects module boundaries and dependency rules.
+
+Can be implemented using external hooks that analyze import graphs and dependencies.

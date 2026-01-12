@@ -359,3 +359,123 @@ func TestEvaluatorEvaluateAllowedFilesystemTool(t *testing.T) {
 		t.Errorf("expected Read with relative path to be allowed: %s", result.Reason)
 	}
 }
+
+func TestEvaluatorEvaluateHooksAllow(t *testing.T) {
+	cfg := &config.Config{
+		Hooks: []config.HookConfig{
+			{
+				Name:    "test-allow",
+				Command: testdataPath("allow.sh"),
+				Tools:   []string{"Write"},
+				Paths:   []string{"**/*.go"},
+			},
+		},
+	}
+	e := NewEvaluator(cfg)
+
+	result := e.Evaluate(Input{
+		ToolName:  "Write",
+		ToolInput: map[string]interface{}{"file_path": "src/main.go"},
+	})
+	if !result.Allowed {
+		t.Errorf("expected hook to allow: %s", result.Reason)
+	}
+}
+
+func TestEvaluatorEvaluateHooksDeny(t *testing.T) {
+	cfg := &config.Config{
+		Hooks: []config.HookConfig{
+			{
+				Name:    "test-deny",
+				Command: testdataPath("deny.sh"),
+				Tools:   []string{"Write"},
+				Paths:   []string{"**/*.go"},
+			},
+		},
+	}
+	e := NewEvaluator(cfg)
+
+	result := e.Evaluate(Input{
+		ToolName:  "Write",
+		ToolInput: map[string]interface{}{"file_path": "src/main.go"},
+	})
+	if result.Allowed {
+		t.Error("expected hook to deny")
+	}
+	if result.Reason != "test-deny: test denial" {
+		t.Errorf("unexpected reason: %s", result.Reason)
+	}
+}
+
+func TestEvaluatorEvaluateHooksNoMatch(t *testing.T) {
+	cfg := &config.Config{
+		Hooks: []config.HookConfig{
+			{
+				Name:    "test-deny",
+				Command: testdataPath("deny.sh"),
+				Tools:   []string{"Write"},
+				Paths:   []string{"**/*.js"},
+			},
+		},
+	}
+	e := NewEvaluator(cfg)
+
+	// Hook configured for .js files, but we're writing .go
+	result := e.Evaluate(Input{
+		ToolName:  "Write",
+		ToolInput: map[string]interface{}{"file_path": "src/main.go"},
+	})
+	if !result.Allowed {
+		t.Errorf("expected hook to not match and allow: %s", result.Reason)
+	}
+}
+
+func TestEvaluatorEvaluateHooksAdvise(t *testing.T) {
+	cfg := &config.Config{
+		Hooks: []config.HookConfig{
+			{
+				Name:    "test-advise",
+				Command: testdataPath("advise.sh"),
+				Tools:   []string{"Write"},
+			},
+		},
+	}
+	e := NewEvaluator(cfg)
+
+	result := e.Evaluate(Input{
+		ToolName:  "Write",
+		ToolInput: map[string]interface{}{"file_path": "test.txt"},
+	})
+	if !result.Allowed {
+		t.Errorf("expected advise to allow: %s", result.Reason)
+	}
+	if result.Warning != "test-advise: consider this" {
+		t.Errorf("unexpected warning: %s", result.Warning)
+	}
+}
+
+func TestEvaluatorEvaluateMultipleHooks(t *testing.T) {
+	cfg := &config.Config{
+		Hooks: []config.HookConfig{
+			{
+				Name:    "first-allow",
+				Command: testdataPath("allow.sh"),
+				Tools:   []string{"Write"},
+			},
+			{
+				Name:    "second-deny",
+				Command: testdataPath("deny.sh"),
+				Tools:   []string{"Write"},
+			},
+		},
+	}
+	e := NewEvaluator(cfg)
+
+	result := e.Evaluate(Input{
+		ToolName:  "Write",
+		ToolInput: map[string]interface{}{"file_path": "test.go"},
+	})
+	if result.Allowed {
+		t.Error("expected second hook to deny")
+	}
+}

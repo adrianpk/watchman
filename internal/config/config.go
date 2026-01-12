@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,7 @@ type Config struct {
 	Incremental IncrementalConfig `yaml:"incremental"`
 	Commands    CommandsConfig    `yaml:"commands"`
 	Tools       ToolsConfig       `yaml:"tools"`
+	Hooks       []HookConfig      `yaml:"hooks,omitempty"`
 }
 
 // RulesConfig enables/disables semantic rules.
@@ -87,6 +89,17 @@ type CommandsConfig struct {
 type ToolsConfig struct {
 	Allow []string `yaml:"allow"`
 	Block []string `yaml:"block"`
+}
+
+// HookConfig defines an external hook executable.
+type HookConfig struct {
+	Name    string        `yaml:"name"`
+	Command string        `yaml:"command"`
+	Args    []string      `yaml:"args,omitempty"`
+	Tools   []string      `yaml:"tools"`
+	Paths   []string      `yaml:"paths,omitempty"`
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+	OnError string        `yaml:"on_error,omitempty"`
 }
 
 // Default returns the default configuration.
@@ -160,6 +173,22 @@ func (c *Config) merge(overlay *Config) {
 	c.Commands.Block = appendUnique(c.Commands.Block, overlay.Commands.Block)
 	c.Tools.Allow = appendUnique(c.Tools.Allow, overlay.Tools.Allow)
 	c.Tools.Block = appendUnique(c.Tools.Block, overlay.Tools.Block)
+	c.Hooks = appendHooksUnique(c.Hooks, overlay.Hooks)
+}
+
+func appendHooksUnique(base, items []HookConfig) []HookConfig {
+	seen := make(map[string]bool)
+	for _, h := range base {
+		seen[h.Name] = true
+	}
+	result := base
+	for _, h := range items {
+		if !seen[h.Name] {
+			result = append(result, h)
+			seen[h.Name] = true
+		}
+	}
+	return result
 }
 
 func appendUnique(base, items []string) []string {

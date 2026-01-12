@@ -77,6 +77,8 @@ commands:
 tools:
   allow: []
   block: []
+
+hooks: []
 ```
 
 ## Rules
@@ -89,9 +91,10 @@ Semantic rules apply to ALL tools. Blocking a rule blocks the *intent*, regardle
 | Scope to defined files | `scope` | Limit modifications to explicitly declared files | Implemented |
 | Version control rules | `versioning` | Commit message format and branch protection | Implemented |
 | Require incremental changes | `incremental` | Reject large-scale rewrites in favor of small diffs | Implemented |
-| Preserve key invariants | `invariants` | Block changes that violate structural rules | Planned |
-| Match established patterns | `patterns` | Ensure new code follows existing conventions | Planned |
-| Enforce explicit boundaries | `boundaries` | Respect module boundaries and dependency rules | Planned |
+| External hooks | `hooks` | Execute custom validation via external programs | Implemented |
+| Preserve key invariants | `invariants` | Block changes that violate structural rules | Via Hooks |
+| Match established patterns | `patterns` | Ensure new code follows existing conventions | Via Hooks |
+| Enforce explicit boundaries | `boundaries` | Respect module boundaries and dependency rules | Via Hooks |
 
 ## Workspace Rule
 
@@ -155,6 +158,30 @@ tools:
 ```
 
 Available tools: `Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`
+
+## Hooks
+
+External hooks allow custom validation via external programs. See [Rules: Hooks](rules.md#hooks-external-hooks) for full documentation.
+
+```yaml
+hooks:
+  - name: "vendor-readonly"
+    command: "./hooks/vendor-readonly.sh"
+    tools: ["Write", "Edit"]
+    paths: ["vendor/**"]
+    timeout: 5s
+    on_error: allow
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Unique identifier |
+| `command` | string | Yes | - | Path to executable |
+| `args` | []string | No | [] | Arguments to pass |
+| `tools` | []string | Yes | - | Tools that trigger hook |
+| `paths` | []string | No | [] | Glob patterns (empty = all) |
+| `timeout` | duration | No | 5s | Max execution time |
+| `on_error` | string | No | allow | Failure behavior: allow, deny |
 
 ## Local Overrides
 

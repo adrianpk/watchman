@@ -2,6 +2,7 @@
 package hook
 
 import (
+	"os"
 	"strings"
 
 	"github.com/adrianpk/watchman/internal/config"
@@ -25,12 +26,18 @@ type Result struct {
 
 // Evaluator evaluates hook inputs against configured rules.
 type Evaluator struct {
-	cfg *config.Config
+	cfg         *config.Config
+	hookMatcher *HookMatcher
+	hookExec    *HookExecutor
 }
 
 // NewEvaluator creates a new hook evaluator.
 func NewEvaluator(cfg *config.Config) *Evaluator {
-	return &Evaluator{cfg: cfg}
+	return &Evaluator{
+		cfg:         cfg,
+		hookMatcher: NewHookMatcher(),
+		hookExec:    NewHookExecutor(),
+	}
 }
 
 // Evaluate processes the hook input and returns a result.
@@ -95,6 +102,13 @@ func (e *Evaluator) Evaluate(input Input) Result {
 		}
 	}
 
+	// Apply external hooks
+	if len(e.cfg.Hooks) > 0 {
+		if result := e.evaluateHooks(input); !result.Allowed || result.Warning != "" {
+			return result
+		}
+	}
+
 	return Result{Allowed: true}
 }
 
@@ -138,6 +152,51 @@ func (e *Evaluator) evaluateIncremental() Result {
 	rule := policy.NewIncrementalRule(&e.cfg.Incremental)
 	decision := rule.Evaluate()
 	return Result{Allowed: decision.Allowed, Reason: decision.Reason, Warning: decision.Warning}
+}
+
+func (e *Evaluator) evaluateHooks(input Input) Result {
+	paths := ExtractPaths(input.ToolName, input.ToolInput)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
+
+	hookInput := HookInput{
+		ToolName:   input.ToolName,
+		ToolInput:  input.ToolInput,
+		Paths:      paths,
+		WorkingDir: cwd,
+	}
+
+	var warnings []string
+
+	for i := range e.cfg.Hooks {
+		hookCfg := &e.cfg.Hooks[i]
+
+		if !e.hookMatcher.Matches(hookCfg, input.ToolName, paths) {
+			continue
+		}
+
+		result := e.hookExec.Execute(hookCfg, hookInput)
+
+		if !result.Allowed {
+			return Result{
+				Allowed: false,
+				Reason:  hookCfg.Name + ": " + result.Reason,
+			}
+		}
+
+		if result.Warning != "" {
+			warnings = append(warnings, hookCfg.Name+": "+result.Warning)
+		}
+	}
+
+	if len(warnings) > 0 {
+		return Result{Allowed: true, Warning: strings.Join(warnings, "; ")}
+	}
+
+	return Result{Allowed: true}
 }
 
 func (e *Evaluator) isToolBlocked(tool string) bool {
