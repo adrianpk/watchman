@@ -15,9 +15,9 @@
   accessing paths outside your project workspace (/home/johndoe/myproject).
 ```
 
-This work grew out of a recent design discussion on a related problem. I did not define the system architecture during that occasion; my contribution was a speculative proposal on how to constrain deviations in LLM-driven generation once constraints became relevant.
+This work grew out of a recent design discussion on a related problem. I did not define the system architecture on that occasion; my contribution was a speculative proposal on how to limit deviation in LLM-driven generation once boundaries became relevant.
 
-One observation was consistent: soft constraints tend to erode over time. Systems adapt around them, particularly when the objective is task completion rather than adherence to intent. When constraints are advisory rather than enforceable, they gradually lose effectiveness.
+One observation was consistent: soft limits tend to erode over time. Systems adapt around them, particularly when the objective is task completion rather than fidelity to intent. When such limits are advisory rather than enforceable, they gradually lose their force.
 
 In parallel, I maintain a fully deterministic, template-based code generator. Iteration in that system involves modifying templates, revisiting assumptions, and revalidating behavior as [patterns and guarantees evolve](https://github.com/hatmaxkit/hatmax-legacy/blob/main/docs/project-direction.md). Over time, this shifts effort away from generation and toward maintenance, reducing the practical value of automation.
 
