@@ -102,6 +102,13 @@ func (e *Evaluator) Evaluate(input Input) Result {
 		}
 	}
 
+	// Apply invariants rule
+	if e.cfg.Rules.Invariants && isModificationTool(input.ToolName) {
+		if result := e.evaluateInvariants(input); !result.Allowed {
+			return result
+		}
+	}
+
 	// Apply external hooks
 	if len(e.cfg.Hooks) > 0 {
 		if result := e.evaluateHooks(input); !result.Allowed || result.Warning != "" {
@@ -152,6 +159,25 @@ func (e *Evaluator) evaluateIncremental() Result {
 	rule := policy.NewIncrementalRule(&e.cfg.Incremental)
 	decision := rule.Evaluate()
 	return Result{Allowed: decision.Allowed, Reason: decision.Reason, Warning: decision.Warning}
+}
+
+func (e *Evaluator) evaluateInvariants(input Input) Result {
+	rule := policy.NewInvariantsRule(&e.cfg.Invariants)
+	paths := ExtractPaths(input.ToolName, input.ToolInput)
+
+	// Get content for content-based checks
+	content := ""
+	if c, ok := input.ToolInput["content"].(string); ok {
+		content = c
+	}
+
+	for _, p := range paths {
+		decision := rule.Evaluate(input.ToolName, p, content)
+		if !decision.Allowed {
+			return Result{Allowed: false, Reason: decision.Reason}
+		}
+	}
+	return Result{Allowed: true}
 }
 
 func (e *Evaluator) evaluateHooks(input Input) Result {

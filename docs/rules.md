@@ -424,11 +424,135 @@ fi
 
 ## Invariants
 
-**Status**: Implemented via Hooks
+**Status**: Implemented
 
-Structural rules are now implemented through the external hooks system. Define custom hooks that validate architectural constraints.
+Declarative structural checks using regex and glob patterns. Language-agnostic, no AST parsing.
 
-See [Hooks](#hooks-external-hooks) for implementation details.
+### Purpose
+
+Enforces structural constraints without external tools:
+- File coexistence (test requires implementation)
+- Content validation (forbid/require patterns)
+- Import restrictions (regex-based)
+- Naming conventions
+- Required files in directories
+
+### Configuration
+
+```yaml
+rules:
+  invariants: true
+
+invariants:
+  coexistence:
+    - name: "test-requires-impl"
+      if: "**/*_test.go"
+      require: "${base}.go"
+
+  content:
+    - name: "no-todos"
+      paths: ["**/*.go", "!**/*_test.go"]
+      forbid: "TODO|FIXME"
+    - name: "copyright"
+      paths: ["**/*.go"]
+      require: "^// Copyright"
+
+  imports:
+    - name: "no-core-in-adapters"
+      paths: ["adapters/**/*.go"]
+      forbid: '".*internal/core"'
+
+  naming:
+    - name: "cmd-main-only"
+      paths: ["cmd/**/*.go"]
+      pattern: "main\\.go$"
+
+  required:
+    - name: "doc-required"
+      dirs: "internal/**"
+      when: "*.go"
+      require: "doc.go"
+```
+
+### Check Types
+
+| Type | Purpose |
+|------|---------|
+| `coexistence` | Ensures related files exist together |
+| `content` | Validates file content against patterns |
+| `imports` | Restricts import statements (regex) |
+| `naming` | Validates file naming conventions |
+| `required` | Ensures files exist in directories |
+
+### Placeholders
+
+| Placeholder | Description | Example |
+|-------------|-------------|---------|
+| `${name}` | Filename without extension | user.go → user |
+| `${ext}` | Extension with dot | user.go → .go |
+| `${base}` | For _test files, without suffix | user_test.go → user |
+
+### Path Patterns
+
+- `**/*.go` - All .go files recursively
+- `!**/*_test.go` - Exclude test files (prefix `!`)
+- `src/**` - Everything under src/
+
+### Tools Affected
+
+| Tool | Invariants Applied |
+|------|-------------------|
+| `Read` | No (read-only) |
+| `Glob` | No (read-only) |
+| `Grep` | No (read-only) |
+| `Bash` | No |
+| `Write` | Yes |
+| `Edit` | Yes |
+| `NotebookEdit` | Yes |
+
+### All Options Reference
+
+**Coexistence Check**
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier |
+| `if` | string | Yes | Glob pattern that triggers check |
+| `require` | string | Yes | File that must exist (supports placeholders) |
+| `message` | string | No | Custom error message |
+
+**Content Check**
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier |
+| `paths` | []string | Yes | Glob patterns (supports ! for exclusion) |
+| `require` | string | No | Regex that must match |
+| `forbid` | string | No | Regex that must not match |
+| `message` | string | No | Custom error message |
+
+**Import Check**
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier |
+| `paths` | []string | Yes | Files to check |
+| `forbid` | string | Yes | Regex for forbidden imports |
+| `message` | string | No | Custom error message |
+
+**Naming Check**
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier |
+| `paths` | []string | Yes | Directories/patterns to check |
+| `pattern` | string | Yes | Regex filenames must match |
+| `message` | string | No | Custom error message |
+
+**Required Check**
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier |
+| `dirs` | string | Yes | Glob for directories to check |
+| `when` | string | No | Only check when pattern exists |
+| `require` | string | Yes | File that must exist |
+| `message` | string | No | Custom error message |
 
 ---
 

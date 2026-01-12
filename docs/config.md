@@ -71,6 +71,13 @@ incremental:
   max_files: 0
   warn_ratio: 0.7
 
+invariants:
+  coexistence: []
+  content: []
+  imports: []
+  naming: []
+  required: []
+
 commands:
   block: []
 
@@ -83,6 +90,16 @@ hooks: []
 
 ## Rules
 
+| Rule | Status |
+|------|--------|
+| `workspace` | Implemented |
+| `scope` | Implemented |
+| `versioning` | Implemented |
+| `incremental` | Implemented |
+| `invariants` | Implemented |
+| `patterns` | Via Hooks |
+| `boundaries` | Via Hooks |
+
 Semantic rules apply to ALL tools. Blocking a rule blocks the *intent*, regardless of which tool attempts it.
 
 | Rule | Key | Description | Status |
@@ -91,8 +108,8 @@ Semantic rules apply to ALL tools. Blocking a rule blocks the *intent*, regardle
 | Scope to defined files | `scope` | Limit modifications to explicitly declared files | Implemented |
 | Version control rules | `versioning` | Commit message format and branch protection | Implemented |
 | Require incremental changes | `incremental` | Reject large-scale rewrites in favor of small diffs | Implemented |
+| Preserve key invariants | `invariants` | Declarative structural checks (regex/glob) | Implemented |
 | External hooks | `hooks` | Execute custom validation via external programs | Implemented |
-| Preserve key invariants | `invariants` | Block changes that violate structural rules | Via Hooks |
 | Match established patterns | `patterns` | Ensure new code follows existing conventions | Via Hooks |
 | Enforce explicit boundaries | `boundaries` | Respect module boundaries and dependency rules | Via Hooks |
 
@@ -127,6 +144,48 @@ incremental:
 ```
 
 Uses `git status` to track modified files. Warnings give the agent runway to wrap up; blocking forces a decision.
+
+## Invariants Rule
+
+Declarative structural checks using regex and glob patterns. Language-agnostic, no AST parsing. See [Invariants](invariants.md) for full documentation.
+
+```yaml
+rules:
+  invariants: true
+
+invariants:
+  # Ensure related files exist together
+  coexistence:
+    - name: "test-requires-impl"
+      if: "**/*_test.go"
+      require: "${base}.go"
+      message: "Test requires implementation file"
+
+  # Validate file content
+  content:
+    - name: "no-todos"
+      paths: ["**/*.go", "!**/*_test.go"]
+      forbid: "TODO|FIXME"
+
+  # Check import statements (regex-based)
+  imports:
+    - name: "no-internal-in-adapters"
+      paths: ["adapters/**/*.go"]
+      forbid: '".*internal/core"'
+
+  # Validate file naming
+  naming:
+    - name: "cmd-main-only"
+      paths: ["cmd/**/*.go"]
+      pattern: "main\\.go$"
+
+  # Require files in directories
+  required:
+    - name: "doc-required"
+      dirs: "internal/**"
+      when: "*.go"
+      require: "doc.go"
+```
 
 ## Commands Control
 

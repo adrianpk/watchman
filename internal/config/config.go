@@ -17,6 +17,7 @@ type Config struct {
 	Scope       ScopeConfig       `yaml:"scope"`
 	Versioning  VersioningConfig  `yaml:"versioning"`
 	Incremental IncrementalConfig `yaml:"incremental"`
+	Invariants  InvariantsConfig  `yaml:"invariants,omitempty"`
 	Commands    CommandsConfig    `yaml:"commands"`
 	Tools       ToolsConfig       `yaml:"tools"`
 	Hooks       []HookConfig      `yaml:"hooks,omitempty"`
@@ -102,6 +103,57 @@ type HookConfig struct {
 	OnError string        `yaml:"on_error,omitempty"`
 }
 
+// InvariantsConfig defines declarative structural checks.
+type InvariantsConfig struct {
+	Coexistence []CoexistenceCheck `yaml:"coexistence,omitempty"`
+	Content     []ContentCheck     `yaml:"content,omitempty"`
+	Imports     []ImportCheck      `yaml:"imports,omitempty"`
+	Naming      []NamingCheck      `yaml:"naming,omitempty"`
+	Required    []RequiredCheck    `yaml:"required,omitempty"`
+}
+
+// CoexistenceCheck ensures related files exist together.
+type CoexistenceCheck struct {
+	Name    string `yaml:"name"`
+	If      string `yaml:"if"`      // Glob pattern that triggers the check
+	Require string `yaml:"require"` // Pattern that must exist (supports ${base}, ${name}, ${ext})
+	Message string `yaml:"message,omitempty"`
+}
+
+// ContentCheck validates file content against patterns.
+type ContentCheck struct {
+	Name    string   `yaml:"name"`
+	Paths   []string `yaml:"paths"`             // Glob patterns (supports ! for exclusion)
+	Require string   `yaml:"require,omitempty"` // Regex that must match
+	Forbid  string   `yaml:"forbid,omitempty"`  // Regex that must not match
+	Message string   `yaml:"message,omitempty"`
+}
+
+// ImportCheck validates import statements (regex-based, not AST).
+type ImportCheck struct {
+	Name    string   `yaml:"name"`
+	Paths   []string `yaml:"paths"`  // Files to check
+	Forbid  string   `yaml:"forbid"` // Regex pattern for forbidden imports
+	Message string   `yaml:"message,omitempty"`
+}
+
+// NamingCheck validates file naming conventions.
+type NamingCheck struct {
+	Name    string   `yaml:"name"`
+	Paths   []string `yaml:"paths"`   // Directories/patterns to check
+	Pattern string   `yaml:"pattern"` // Regex pattern filenames must match
+	Message string   `yaml:"message,omitempty"`
+}
+
+// RequiredCheck ensures certain files exist in directories.
+type RequiredCheck struct {
+	Name    string `yaml:"name"`
+	Dirs    string `yaml:"dirs"`              // Glob for directories to check
+	When    string `yaml:"when,omitempty"`    // Only check when this pattern exists
+	Require string `yaml:"require"`           // File that must exist
+	Message string `yaml:"message,omitempty"`
+}
+
 // Default returns the default configuration.
 func Default() *Config {
 	return &Config{
@@ -170,10 +222,96 @@ func (c *Config) merge(overlay *Config) {
 	c.Versioning = overlay.Versioning
 	c.Versioning.Branches.Protected = appendUnique(c.Versioning.Branches.Protected, overlay.Versioning.Branches.Protected)
 	c.Incremental = overlay.Incremental
+	c.Invariants = mergeInvariants(c.Invariants, overlay.Invariants)
 	c.Commands.Block = appendUnique(c.Commands.Block, overlay.Commands.Block)
 	c.Tools.Allow = appendUnique(c.Tools.Allow, overlay.Tools.Allow)
 	c.Tools.Block = appendUnique(c.Tools.Block, overlay.Tools.Block)
 	c.Hooks = appendHooksUnique(c.Hooks, overlay.Hooks)
+}
+
+func mergeInvariants(base, overlay InvariantsConfig) InvariantsConfig {
+	return InvariantsConfig{
+		Coexistence: appendCoexistenceUnique(base.Coexistence, overlay.Coexistence),
+		Content:     appendContentUnique(base.Content, overlay.Content),
+		Imports:     appendImportsUnique(base.Imports, overlay.Imports),
+		Naming:      appendNamingUnique(base.Naming, overlay.Naming),
+		Required:    appendRequiredUnique(base.Required, overlay.Required),
+	}
+}
+
+func appendCoexistenceUnique(base, items []CoexistenceCheck) []CoexistenceCheck {
+	seen := make(map[string]bool)
+	for _, c := range base {
+		seen[c.Name] = true
+	}
+	result := base
+	for _, c := range items {
+		if !seen[c.Name] {
+			result = append(result, c)
+			seen[c.Name] = true
+		}
+	}
+	return result
+}
+
+func appendContentUnique(base, items []ContentCheck) []ContentCheck {
+	seen := make(map[string]bool)
+	for _, c := range base {
+		seen[c.Name] = true
+	}
+	result := base
+	for _, c := range items {
+		if !seen[c.Name] {
+			result = append(result, c)
+			seen[c.Name] = true
+		}
+	}
+	return result
+}
+
+func appendImportsUnique(base, items []ImportCheck) []ImportCheck {
+	seen := make(map[string]bool)
+	for _, c := range base {
+		seen[c.Name] = true
+	}
+	result := base
+	for _, c := range items {
+		if !seen[c.Name] {
+			result = append(result, c)
+			seen[c.Name] = true
+		}
+	}
+	return result
+}
+
+func appendNamingUnique(base, items []NamingCheck) []NamingCheck {
+	seen := make(map[string]bool)
+	for _, c := range base {
+		seen[c.Name] = true
+	}
+	result := base
+	for _, c := range items {
+		if !seen[c.Name] {
+			result = append(result, c)
+			seen[c.Name] = true
+		}
+	}
+	return result
+}
+
+func appendRequiredUnique(base, items []RequiredCheck) []RequiredCheck {
+	seen := make(map[string]bool)
+	for _, c := range base {
+		seen[c.Name] = true
+	}
+	result := base
+	for _, c := range items {
+		if !seen[c.Name] {
+			result = append(result, c)
+			seen[c.Name] = true
+		}
+	}
+	return result
 }
 
 func appendHooksUnique(base, items []HookConfig) []HookConfig {
