@@ -6,18 +6,19 @@ This is an early proof of concept. The implementation is minimal and the feature
 
 Watchman explores mechanical enforcement of constraints on LLM-driven code generation. The core idea: soft constraints erode over time, so enforcement must be external and non-negotiable.
 
-Six archetypal rules were identified during initial design:
+Seven archetypal rules were identified during initial design:
 
-| Rule | Description |
-|------|-------------|
-| **Confine to workspace** | No access outside the project directory |
-| **Scope to defined files** | Limit modifications to explicitly declared files |
-| **Require incremental changes** | Reject large-scale rewrites in favor of small, reviewable diffs |
-| **Preserve key invariants** | Block changes that violate structural rules (naming, architecture) |
-| **Match established patterns** | Ensure new code follows existing conventions |
-| **Enforce explicit boundaries** | Respect module boundaries and dependency rules |
+| Rule | Status | Description |
+|------|--------|-------------|
+| **Confine to workspace** | Implemented | No access outside the project directory |
+| **Scope to defined files** | Implemented | Limit modifications to explicitly declared files |
+| **Version control rules** | Implemented | Commit message format and branch protection |
+| **Require incremental changes** | Planned | Reject large-scale rewrites in favor of small, reviewable diffs |
+| **Preserve key invariants** | Planned | Block changes that violate structural rules (naming, architecture) |
+| **Match established patterns** | Planned | Ensure new code follows existing conventions |
+| **Enforce explicit boundaries** | Planned | Respect module boundaries and dependency rules |
 
-This POC implements only the first rule. The others represent potential directions for future exploration.
+Three rules are currently implemented. See [rules.md](rules.md) for detailed documentation.
 
 ## What It Does
 

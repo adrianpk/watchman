@@ -40,6 +40,7 @@ version: 1
 rules:
   workspace: true
   scope: false
+  versioning: false
   incremental: false
   invariants: false
   patterns: false
@@ -48,6 +49,23 @@ rules:
 workspace:
   allow: []
   block: []
+
+scope:
+  allow: []
+  block: []
+
+versioning:
+  commit:
+    max_length: 0
+    require_uppercase: false
+    no_period: false
+    prefix_pattern: ""
+  branches:
+    protected: []
+  operations:
+    block: []
+  workflow: ""
+  tool: ""
 
 commands:
   block: []
@@ -65,6 +83,7 @@ Semantic rules apply to ALL tools. Blocking a rule blocks the *intent*, regardle
 |------|-----|-------------|--------|
 | Confine to workspace | `workspace` | No access outside the project directory | Implemented |
 | Scope to defined files | `scope` | Limit modifications to explicitly declared files | Implemented |
+| Version control rules | `versioning` | Commit message format and branch protection | Implemented |
 | Require incremental changes | `incremental` | Reject large-scale rewrites in favor of small diffs | Planned |
 | Preserve key invariants | `invariants` | Block changes that violate structural rules | Planned |
 | Match established patterns | `patterns` | Ensure new code follows existing conventions | Planned |

@@ -10,18 +10,20 @@ import (
 
 // Config represents the watchman configuration.
 type Config struct {
-	Version   int             `yaml:"version"`
-	Rules     RulesConfig     `yaml:"rules"`
-	Workspace WorkspaceConfig `yaml:"workspace"`
-	Scope     ScopeConfig     `yaml:"scope"`
-	Commands  CommandsConfig  `yaml:"commands"`
-	Tools     ToolsConfig     `yaml:"tools"`
+	Version    int              `yaml:"version"`
+	Rules      RulesConfig      `yaml:"rules"`
+	Workspace  WorkspaceConfig  `yaml:"workspace"`
+	Scope      ScopeConfig      `yaml:"scope"`
+	Versioning VersioningConfig `yaml:"versioning"`
+	Commands   CommandsConfig   `yaml:"commands"`
+	Tools      ToolsConfig      `yaml:"tools"`
 }
 
 // RulesConfig enables/disables semantic rules.
 type RulesConfig struct {
 	Workspace   bool `yaml:"workspace"`
 	Scope       bool `yaml:"scope"`
+	Versioning  bool `yaml:"versioning"`
 	Incremental bool `yaml:"incremental"`
 	Invariants  bool `yaml:"invariants"`
 	Patterns    bool `yaml:"patterns"`
@@ -38,6 +40,35 @@ type WorkspaceConfig struct {
 type ScopeConfig struct {
 	Allow []string `yaml:"allow"`
 	Block []string `yaml:"block"`
+}
+
+// VersioningConfig controls commit and branch rules.
+type VersioningConfig struct {
+	Commit     CommitConfig     `yaml:"commit"`
+	Branches   BranchesConfig   `yaml:"branches"`
+	Operations OperationsConfig `yaml:"operations"`
+	Workflow   string           `yaml:"workflow"`
+	Tool       string           `yaml:"tool"`
+}
+
+// CommitConfig controls commit message validation.
+type CommitConfig struct {
+	MaxLength        int    `yaml:"max_length"`
+	MaxFiles         int    `yaml:"max_files"`
+	RequireUppercase bool   `yaml:"require_uppercase"`
+	NoPeriod         bool   `yaml:"no_period"`
+	Conventional     bool   `yaml:"conventional"`
+	PrefixPattern    string `yaml:"prefix_pattern"`
+}
+
+// OperationsConfig controls blocked git operations.
+type OperationsConfig struct {
+	Block []string `yaml:"block"`
+}
+
+// BranchesConfig controls branch protection.
+type BranchesConfig struct {
+	Protected []string `yaml:"protected"`
 }
 
 // CommandsConfig controls shell command filtering.
@@ -116,6 +147,8 @@ func (c *Config) merge(overlay *Config) {
 	c.Workspace.Block = appendUnique(c.Workspace.Block, overlay.Workspace.Block)
 	c.Scope.Allow = appendUnique(c.Scope.Allow, overlay.Scope.Allow)
 	c.Scope.Block = appendUnique(c.Scope.Block, overlay.Scope.Block)
+	c.Versioning = overlay.Versioning
+	c.Versioning.Branches.Protected = appendUnique(c.Versioning.Branches.Protected, overlay.Versioning.Branches.Protected)
 	c.Commands.Block = appendUnique(c.Commands.Block, overlay.Commands.Block)
 	c.Tools.Allow = appendUnique(c.Tools.Allow, overlay.Tools.Allow)
 	c.Tools.Block = appendUnique(c.Tools.Block, overlay.Tools.Block)

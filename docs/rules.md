@@ -53,6 +53,13 @@ Some paths are always protected regardless of configuration:
 
 These cannot be overridden.
 
+### All Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `allow` | []string | [] | Paths allowed outside workspace |
+| `block` | []string | [] | Paths blocked inside workspace |
+
 ---
 
 ## Scope
@@ -116,6 +123,120 @@ Supports glob patterns:
 1. If no `allow` patterns defined, all paths are allowed
 2. If `allow` patterns defined, path must match at least one
 3. `block` patterns take precedence over `allow`
+
+### All Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `allow` | []string | [] | Glob patterns for allowed files |
+| `block` | []string | [] | Glob patterns for blocked files |
+
+---
+
+## Versioning
+
+**Status**: Implemented
+
+Controls commit message format and branch protection for git/jj workflows.
+
+### Purpose
+
+Enforces consistent commit practices:
+- Commit message formatting (length, case, punctuation)
+- Branch protection (prevent commits to main/master)
+- Tool preference (prefer jj over git)
+
+### Configuration
+
+```yaml
+rules:
+  versioning: true
+
+versioning:
+  commit:
+    max_length: 72
+    require_uppercase: true
+    no_period: true
+    prefix_pattern: ""  # e.g., "\[JIRA-\d+\]"
+  branches:
+    protected:
+      - main
+      - master
+  tool: ""  # "jj" to prefer jj over git
+```
+
+### Commit Message Rules
+
+| Rule | Description |
+|------|-------------|
+| `max_length` | Maximum characters (0 = unlimited) |
+| `require_uppercase` | First character must be uppercase |
+| `no_period` | Must not end with period |
+| `prefix_pattern` | Regex pattern message must match |
+
+### Branch Protection
+
+Protected branches block direct commits:
+
+```yaml
+versioning:
+  branches:
+    protected:
+      - main
+      - master
+      - release/*
+```
+
+### Operations Block
+
+Block specific git operations:
+
+```yaml
+versioning:
+  operations:
+    block:
+      - push --force
+      - push -f
+```
+
+### Workflow
+
+Enforce a git workflow style:
+
+| Value | Effect |
+|-------|--------|
+| `""` | No restriction (default) |
+| `linear` | Blocks merge, prefer rebase |
+| `merge` | Blocks rebase, prefer merge |
+
+```yaml
+versioning:
+  workflow: linear
+```
+
+### Tool Preference
+
+When `tool: jj` is set, blocks `git commit` and suggests `jj commit`:
+
+```yaml
+versioning:
+  tool: jj
+```
+
+Other VCS (mercurial, etc.) not yet supported.
+
+### All Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `commit.max_length` | int | 0 | Max message length (0 = unlimited) |
+| `commit.require_uppercase` | bool | false | First char must be uppercase |
+| `commit.no_period` | bool | false | Must not end with period |
+| `commit.prefix_pattern` | string | "" | Regex prefix pattern |
+| `branches.protected` | []string | [] | Branches that block commits |
+| `operations.block` | []string | [] | Git operations to block |
+| `workflow` | string | "" | Workflow style: linear, merge |
+| `tool` | string | "" | Preferred VCS: jj |
 
 ---
 

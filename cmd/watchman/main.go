@@ -111,6 +111,17 @@ func main() {
 		}
 	}
 
+	if cfg.Rules.Versioning && input.ToolName == "Bash" {
+		if cmd, ok := input.ToolInput["command"].(string); ok {
+			rule := policy.NewVersioningRule(&cfg.Versioning)
+			decision := rule.Evaluate(cmd)
+			if !decision.Allowed {
+				deny(decision.Reason)
+				return
+			}
+		}
+	}
+
 	allow()
 }
 
