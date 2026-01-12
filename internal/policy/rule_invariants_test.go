@@ -352,3 +352,75 @@ func TestInvariantsCustomMessage(t *testing.T) {
 		t.Errorf("unexpected reason: %s", decision.Reason)
 	}
 }
+
+func TestInvariantsNoFailedPrefix(t *testing.T) {
+	cfg := &config.InvariantsConfig{
+		Content: []config.ContentCheck{
+			{
+				Name:    "no-failed-prefix",
+				Paths:   []string{"**/*.go"},
+				Forbid:  `(fmt\.Errorf|errors\.New)\s*\(\s*"[Ff]ailed`,
+				Message: "Use 'Cannot' for limitations or 'Error:' for failures, not 'Failed to'",
+			},
+		},
+	}
+	rule := NewInvariantsRule(cfg)
+
+	tests := []struct {
+		name    string
+		content string
+		allowed bool
+	}{
+		{"fmt.Errorf with Failed", `fmt.Errorf("Failed to open file")`, false},
+		{"errors.New with failed", `errors.New("failed to connect")`, false},
+		{"fmt.Errorf with Cannot", `fmt.Errorf("Cannot open file: %w", err)`, true},
+		{"errors.New with Error", `errors.New("Error: connection refused")`, true},
+		{"failed in message not prefix", `fmt.Errorf("operation failed")`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := rule.Evaluate("Write", "src/main.go", tt.content)
+			if decision.Allowed != tt.allowed {
+				t.Errorf("Evaluate(%q) = %v, want %v: %s",
+					tt.content, decision.Allowed, tt.allowed, decision.Reason)
+			}
+		})
+	}
+}
+
+func TestInvariantsErrorLowercase(t *testing.T) {
+	cfg := &config.InvariantsConfig{
+		Content: []config.ContentCheck{
+			{
+				Name:    "error-lowercase",
+				Paths:   []string{"**/*.go"},
+				Forbid:  `(fmt\.Errorf|errors\.New)\s*\(\s*"[A-Z]`,
+				Message: "Error messages should not be capitalized (Go style)",
+			},
+		},
+	}
+	rule := NewInvariantsRule(cfg)
+
+	tests := []struct {
+		name    string
+		content string
+		allowed bool
+	}{
+		{"uppercase start", `errors.New("Invalid input")`, false},
+		{"lowercase start", `errors.New("invalid input")`, true},
+		{"fmt.Errorf uppercase", `fmt.Errorf("Connection refused: %w", err)`, false},
+		{"fmt.Errorf lowercase", `fmt.Errorf("connection refused: %w", err)`, true},
+		{"format verb start", `fmt.Errorf("%s: connection failed", host)`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := rule.Evaluate("Write", "src/main.go", tt.content)
+			if decision.Allowed != tt.allowed {
+				t.Errorf("Evaluate(%q) = %v, want %v: %s",
+					tt.content, decision.Allowed, tt.allowed, decision.Reason)
+			}
+		})
+	}
+}
