@@ -37,7 +37,7 @@ func TestNewIncrementalRule(t *testing.T) {
 	}
 }
 
-func TestIncrementalRule_WarnThreshold(t *testing.T) {
+func TestIncrementalRuleWarnThreshold(t *testing.T) {
 	tests := []struct {
 		name      string
 		maxFiles  int
@@ -90,7 +90,7 @@ func TestIncrementalRule_WarnThreshold(t *testing.T) {
 	}
 }
 
-func TestIncrementalRule_EvaluateDisabled(t *testing.T) {
+func TestIncrementalRuleEvaluateDisabled(t *testing.T) {
 	// When MaxFiles is 0, rule is effectively disabled
 	rule := &IncrementalRule{MaxFiles: 0}
 	decision := rule.Evaluate()
@@ -99,7 +99,7 @@ func TestIncrementalRule_EvaluateDisabled(t *testing.T) {
 	}
 }
 
-func TestIncrementalRule_Evaluate(t *testing.T) {
+func TestIncrementalRuleEvaluate(t *testing.T) {
 	tests := []struct {
 		name        string
 		maxFiles    int
@@ -184,7 +184,7 @@ func TestIncrementalRule_Evaluate(t *testing.T) {
 	}
 }
 
-func TestIncrementalRule_CountModifiedFiles(t *testing.T) {
+func TestIncrementalRuleCountModifiedFiles(t *testing.T) {
 	t.Run("uses countFunc when set", func(t *testing.T) {
 		rule := &IncrementalRule{
 			countFunc: func() int { return 42 },
