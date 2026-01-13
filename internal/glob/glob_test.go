@@ -56,6 +56,29 @@ func TestMatchDoublestar(t *testing.T) {
 	}
 }
 
+func TestMatchAbsolutePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		pattern string
+		want    bool
+	}{
+		{"absolute doublestar go", "/home/user/project/src/main.go", "**/*.go", true},
+		{"absolute doublestar html", "/var/www/app/templates/page.html", "**/*.html", true},
+		{"absolute with prefix no match", "/home/user/project/src/main.go", "src/**/*.go", false}, // prefix doesn't match absolute
+		{"absolute exact", "/etc/passwd", "/etc/passwd", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Match(tt.path, tt.pattern)
+			if got != tt.want {
+				t.Errorf("Match(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMatchAny(t *testing.T) {
 	tests := []struct {
 		name     string

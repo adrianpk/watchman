@@ -1,6 +1,8 @@
 package policy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/adrianpk/watchman/internal/config"
@@ -200,6 +202,71 @@ func TestScopeIsInScope(t *testing.T) {
 			got := tt.rule.isInScope(tt.path)
 			if got != tt.inScope {
 				t.Errorf("isInScope(%q) = %v, want %v", tt.path, got, tt.inScope)
+			}
+		})
+	}
+}
+
+func TestScopeAbsolutePathNormalization(t *testing.T) {
+	// This test verifies that absolute paths within cwd are normalized
+	// to relative paths for glob matching
+	rule := &ScopeToFiles{Allow: []string{"assets/**/*.html", "src/**/*.go"}}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Skip("cannot get cwd")
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		inScope bool
+	}{
+		// Relative paths should work as before
+		{"relative html", "assets/templates/page.html", true},
+		{"relative go", "src/main.go", true},
+		{"relative out of scope", "vendor/lib.go", false},
+
+		// Absolute paths within cwd should be normalized and match
+		{"absolute html", filepath.Join(cwd, "assets/templates/page.html"), true},
+		{"absolute go", filepath.Join(cwd, "src/main.go"), true},
+		{"absolute out of scope", filepath.Join(cwd, "vendor/lib.go"), false},
+
+		// Absolute paths outside cwd should not match relative patterns
+		{"absolute outside cwd", "/tmp/assets/templates/page.html", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rule.isInScope(tt.path)
+			if got != tt.inScope {
+				t.Errorf("isInScope(%q) = %v, want %v", tt.path, got, tt.inScope)
+			}
+		})
+	}
+}
+
+func TestToRelativePath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string // empty means should return same path
+	}{
+		{"relative stays relative", "src/main.go", "src/main.go"},
+		{"dot relative", "./src/main.go", "./src/main.go"},
+		{"outside cwd stays absolute", "/etc/passwd", "/etc/passwd"},
+		{"tmp stays absolute", "/tmp/file.txt", "/tmp/file.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toRelativePath(tt.path)
+			want := tt.want
+			if want == "" {
+				want = tt.path
+			}
+			if got != want {
+				t.Errorf("toRelativePath(%q) = %q, want %q", tt.path, got, want)
 			}
 		})
 	}

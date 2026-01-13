@@ -1,6 +1,10 @@
 package policy
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/adrianpk/watchman/internal/config"
 	"github.com/adrianpk/watchman/internal/glob"
 	"github.com/adrianpk/watchman/internal/parser"
@@ -41,18 +45,29 @@ func (r *ScopeToFiles) Evaluate(toolName string, cmd parser.Command) Decision {
 		if r.isBlocked(p) {
 			return Decision{
 				Allowed: false,
-				Reason:  "path is blocked by scope configuration: " + p,
+				Reason:  "scope.block: " + p + " matches blocked pattern",
 			}
 		}
 		if !r.isInScope(p) {
 			return Decision{
 				Allowed: false,
-				Reason:  "path is outside allowed scope: " + p,
+				Reason:  "scope.allow: " + p + " does not match any allowed pattern " + r.summarizeAllow(),
 			}
 		}
 	}
 
 	return Decision{Allowed: true}
+}
+
+// summarizeAllow returns a short summary of allowed patterns for error messages.
+func (r *ScopeToFiles) summarizeAllow() string {
+	if len(r.Allow) == 0 {
+		return "(none configured)"
+	}
+	if len(r.Allow) <= 5 {
+		return "(" + strings.Join(r.Allow, ", ") + ")"
+	}
+	return "(" + strings.Join(r.Allow[:5], ", ") + ", ...)"
 }
 
 // isBlocked checks if a path matches any block pattern.
@@ -66,5 +81,33 @@ func (r *ScopeToFiles) isInScope(p string) bool {
 	if len(r.Allow) == 0 {
 		return true
 	}
-	return glob.MatchAny(p, r.Allow)
+
+	// Normalize path to relative for glob matching
+	// This allows patterns like "src/**/*.go" to match absolute paths
+	relPath := toRelativePath(p)
+
+	// Try both the original path and the relative version
+	return glob.MatchAny(p, r.Allow) || glob.MatchAny(relPath, r.Allow)
+}
+
+// toRelativePath converts an absolute path to relative (if within cwd).
+func toRelativePath(p string) string {
+	if !filepath.IsAbs(p) {
+		return p
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return p
+	}
+
+	// Check if path is within cwd
+	if strings.HasPrefix(p, cwd+string(filepath.Separator)) {
+		rel, err := filepath.Rel(cwd, p)
+		if err == nil {
+			return rel
+		}
+	}
+
+	return p
 }

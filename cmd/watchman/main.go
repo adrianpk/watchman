@@ -41,7 +41,8 @@ func runHook() error {
 	// Constructor
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("cannot load config: %w", err)
+		deny("watchman config error: " + err.Error())
+		return nil
 	}
 
 	evaluator := hook.NewEvaluator(cfg)
@@ -49,7 +50,8 @@ func runHook() error {
 	// Setup: parse input
 	var input hookInput
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
-		return fmt.Errorf("cannot decode input: %w", err)
+		deny("watchman input error: " + err.Error())
+		return nil
 	}
 
 	// Start: evaluate
@@ -81,6 +83,7 @@ type hookInput struct {
 
 type hookOutput struct {
 	Decision string `json:"decision"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 func allow() {
@@ -89,6 +92,7 @@ func allow() {
 }
 
 func deny(reason string) {
+	json.NewEncoder(os.Stdout).Encode(hookOutput{Decision: "block", Reason: reason})
 	fmt.Fprintln(os.Stderr, reason)
 	os.Exit(2)
 }

@@ -34,19 +34,19 @@ func (r *ConfineToWorkspace) Evaluate(cmd parser.Command) Decision {
 		if IsAlwaysProtected(p) {
 			return Decision{
 				Allowed: false,
-				Reason:  "path is protected and cannot be accessed. User must perform this action manually.",
+				Reason:  "protected path: " + p + " (hardcoded security boundary)",
 			}
 		}
 		if r.isBlocked(p) {
 			return Decision{
 				Allowed: false,
-				Reason:  "path is blocked by configuration: " + p,
+				Reason:  "workspace.block: " + p + " matches blocked pattern",
 			}
 		}
 		if r.violatesBoundary(p) {
 			return Decision{
 				Allowed: false,
-				Reason:  "cannot access paths outside the project workspace",
+				Reason:  "workspace boundary: " + p + " is outside project directory",
 			}
 		}
 	}

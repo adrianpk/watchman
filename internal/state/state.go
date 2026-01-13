@@ -14,14 +14,14 @@ const stateFileName = ".watchman-state"
 
 // State represents the persistent state for reminders.
 type State struct {
-	TaskCount   int                    `json:"task_count"`
-	LastChecked map[string]time.Time   `json:"last_checked"` // Per-reminder last trigger time
-	TaskCounts  map[string]int         `json:"task_counts"`  // Per-reminder task count since last trigger
+	TaskCount   int                  `json:"task_count"`
+	LastChecked map[string]time.Time `json:"last_checked"` // Per-reminder last trigger time
+	TaskCounts  map[string]int       `json:"task_counts"`  // Per-reminder task count since last trigger
 }
 
 // Manager handles state persistence and reminder checks.
 type Manager struct {
-	state    *State
+	state     *State
 	statePath string
 }
 

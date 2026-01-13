@@ -250,8 +250,9 @@ func TestWatchmanBlocksGrepAbsolutePath(t *testing.T) {
 func TestWatchmanInvalidJSON(t *testing.T) {
 	_, stderr, exitCode := runWatchman(t, "not json")
 
-	if exitCode != 1 {
-		t.Errorf("expected exit 1 for invalid JSON, got %d", exitCode)
+	// Invalid JSON should block (exit 2) to fail closed
+	if exitCode != 2 {
+		t.Errorf("expected exit 2 for invalid JSON (fail closed), got %d", exitCode)
 	}
 
 	if stderr == "" {
