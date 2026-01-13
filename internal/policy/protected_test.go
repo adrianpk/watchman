@@ -102,6 +102,33 @@ func TestIsAlwaysProtected(t *testing.T) {
 			path: filepath.Join(home, ".sshkeys"),
 			want: false,
 		},
+		// Claude operational directories should NOT be protected
+		{
+			name: "claude plans directory",
+			path: filepath.Join(home, ".claude", "plans", "plan.md"),
+			want: false,
+		},
+		{
+			name: "claude todos directory",
+			path: filepath.Join(home, ".claude", "todos", "session.json"),
+			want: false,
+		},
+		{
+			name: "claude file-history directory",
+			path: filepath.Join(home, ".claude", "file-history", "file.json"),
+			want: false,
+		},
+		// But credentials and settings remain protected
+		{
+			name: "claude credentials protected",
+			path: filepath.Join(home, ".claude", ".credentials.json"),
+			want: true,
+		},
+		{
+			name: "claude settings local protected",
+			path: filepath.Join(home, ".claude", "settings.local.json"),
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {

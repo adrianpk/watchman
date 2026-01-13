@@ -9,7 +9,11 @@ import (
 // alwaysProtected contains paths that are NEVER accessible, regardless of config.
 // This is a hardcoded security boundary that cannot be overridden.
 var alwaysProtected = []string{
-	"~/.claude/",
+	// Claude Code credentials and settings (not operational dirs like plans/, todos/)
+	"~/.claude/.credentials.json",
+	"~/.claude/settings.json",
+	"~/.claude/settings.local.json",
+	// SSH and cloud credentials
 	"~/.ssh/",
 	"~/.aws/",
 	"~/.gnupg/",

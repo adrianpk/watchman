@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"os"
 	"testing"
 
 	"github.com/adrianpk/watchman/internal/config"
@@ -277,5 +278,73 @@ func TestEvaluateWithAllowList(t *testing.T) {
 
 	if !decision.Allowed {
 		t.Error("should allow /tmp/test.txt")
+	}
+}
+
+func TestIsClaudeOperationalPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		// Operational paths should be allowed
+		{"plans directory", "~/.claude/plans/plan.md", true},
+		{"todos directory", "~/.claude/todos/session.json", true},
+		{"file-history", "~/.claude/file-history/file.json", true},
+		{"cache", "~/.claude/cache/data", true},
+		{"claude root", "~/.claude", true},
+
+		// Sensitive files should NOT be allowed (protected separately)
+		{"credentials", "~/.claude/.credentials.json", false},
+		{"settings", "~/.claude/settings.json", false},
+		{"settings local", "~/.claude/settings.local.json", false},
+
+		// Non-claude paths should not match
+		{"random path", "/tmp/something", false},
+		{"home file", "~/somefile.txt", false},
+		{"similar name", "~/.claudex/file", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Expand ~ to home directory
+			path := tt.path
+			if len(path) > 0 && path[0] == '~' {
+				if home, err := os.UserHomeDir(); err == nil {
+					path = home + path[1:]
+				}
+			}
+			got := isClaudeOperationalPath(path)
+			if got != tt.want {
+				t.Errorf("isClaudeOperationalPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWorkspaceAllowsClaudeOperationalPaths(t *testing.T) {
+	rule := &ConfineToWorkspace{} // No special config, but should allow ~/.claude/plans
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("cannot get home dir")
+	}
+
+	// Plans should be allowed even without explicit config
+	plansPath := home + "/.claude/plans/plan.md"
+	cmd := parser.Command{Args: []string{plansPath}}
+	decision := rule.Evaluate(cmd)
+
+	if !decision.Allowed {
+		t.Errorf("should allow Claude plans path %s: %s", plansPath, decision.Reason)
+	}
+
+	// But credentials should still be blocked (by IsAlwaysProtected)
+	credsPath := home + "/.claude/.credentials.json"
+	cmd = parser.Command{Args: []string{credsPath}}
+	decision = rule.Evaluate(cmd)
+
+	if decision.Allowed {
+		t.Error("should block Claude credentials path")
 	}
 }

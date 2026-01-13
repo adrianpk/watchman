@@ -100,8 +100,43 @@ func (r *ConfineToWorkspace) violatesBoundary(p string) bool {
 		return false
 	}
 
+	// Allow Claude Code operational directories (plans, todos, etc.)
+	// Note: sensitive files like .credentials.json are still blocked by IsAlwaysProtected
+	if isClaudeOperationalPath(absPath) {
+		return false
+	}
+
 	if r.isAllowed(p) {
 		return false
+	}
+
+	return true
+}
+
+// isClaudeOperationalPath checks if the path is within Claude Code's
+// operational directories that it needs to function (plans, todos, etc.)
+func isClaudeOperationalPath(absPath string) bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+
+	claudeDir := filepath.Join(home, ".claude")
+	if !strings.HasPrefix(absPath, claudeDir+string(filepath.Separator)) && absPath != claudeDir {
+		return false
+	}
+
+	// Already protected by IsAlwaysProtected, but double-check here
+	// to ensure we don't accidentally allow sensitive files
+	sensitiveFiles := []string{
+		filepath.Join(claudeDir, ".credentials.json"),
+		filepath.Join(claudeDir, "settings.json"),
+		filepath.Join(claudeDir, "settings.local.json"),
+	}
+	for _, sensitive := range sensitiveFiles {
+		if absPath == sensitive {
+			return false
+		}
 	}
 
 	return true
