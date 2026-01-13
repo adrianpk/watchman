@@ -8,6 +8,7 @@ import (
 	"github.com/adrianpk/watchman/internal/config"
 	"github.com/adrianpk/watchman/internal/parser"
 	"github.com/adrianpk/watchman/internal/policy"
+	"github.com/adrianpk/watchman/internal/state"
 )
 
 // Input represents the hook input from Claude Code.
@@ -26,17 +27,22 @@ type Result struct {
 
 // Evaluator evaluates hook inputs against configured rules.
 type Evaluator struct {
-	cfg         *config.Config
-	hookMatcher *HookMatcher
-	hookExec    *HookExecutor
+	cfg          *config.Config
+	hookMatcher  *HookMatcher
+	hookExec     *HookExecutor
+	stateManager *state.Manager
 }
 
 // NewEvaluator creates a new hook evaluator.
 func NewEvaluator(cfg *config.Config) *Evaluator {
+	sm := state.NewManager()
+	_ = sm.Load() // Ignore error, use fresh state if load fails
+
 	return &Evaluator{
-		cfg:         cfg,
-		hookMatcher: NewHookMatcher(),
-		hookExec:    NewHookExecutor(),
+		cfg:          cfg,
+		hookMatcher:  NewHookMatcher(),
+		hookExec:     NewHookExecutor(),
+		stateManager: sm,
 	}
 }
 
@@ -116,7 +122,8 @@ func (e *Evaluator) Evaluate(input Input) Result {
 		}
 	}
 
-	return Result{Allowed: true}
+	// Check reminders (post-execution, always runs for allowed operations)
+	return e.evaluateReminders()
 }
 
 func (e *Evaluator) evaluateWorkspace(input Input) Result {
@@ -225,6 +232,30 @@ func (e *Evaluator) evaluateHooks(input Input) Result {
 	return Result{Allowed: true}
 }
 
+func (e *Evaluator) evaluateReminders() Result {
+	if len(e.cfg.Reminders) == 0 {
+		return Result{Allowed: true}
+	}
+
+	// Increment task count
+	e.stateManager.IncrementTaskCount()
+
+	// Check if any reminders should trigger
+	triggered := e.stateManager.CheckReminders(e.cfg.Reminders)
+
+	// Save state (ignore errors, non-critical)
+	_ = e.stateManager.Save()
+
+	if len(triggered) > 0 {
+		return Result{
+			Allowed: true,
+			Warning: strings.Join(triggered, "; "),
+		}
+	}
+
+	return Result{Allowed: true}
+}
+
 func (e *Evaluator) isToolBlocked(tool string) bool {
 	for _, t := range e.cfg.Tools.Block {
 		if strings.EqualFold(t, tool) {
@@ -248,11 +279,158 @@ func (e *Evaluator) isToolAllowed(tool string) bool {
 
 func (e *Evaluator) isCommandBlocked(cmd string) string {
 	for _, pattern := range e.cfg.Commands.Block {
-		if strings.Contains(cmd, pattern) {
+		// Patterns with spaces (like "rm -rf /") use substring matching
+		if strings.Contains(pattern, " ") {
+			if strings.Contains(cmd, pattern) {
+				return pattern
+			}
+			continue
+		}
+
+		// Single-word patterns match only in command position
+		if isCommandInPosition(cmd, pattern) {
 			return pattern
 		}
 	}
 	return ""
+}
+
+// isCommandInPosition checks if pattern appears as an actual command
+// (first token of a pipeline/chain segment), not as an argument.
+func isCommandInPosition(cmd, pattern string) bool {
+	// Split by command separators: |, &&, ||, ;
+	// We iterate through segments to find command positions
+	segments := splitCommandSegments(cmd)
+
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+
+		// Extract the command (first token)
+		command := extractCommandName(seg)
+		if command == pattern {
+			return true
+		}
+	}
+	return false
+}
+
+// splitCommandSegments splits a shell command by |, &&, ||, ;
+func splitCommandSegments(cmd string) []string {
+	var segments []string
+	var current strings.Builder
+	i := 0
+
+	for i < len(cmd) {
+		ch := cmd[i]
+
+		switch ch {
+		case '|':
+			segments = append(segments, current.String())
+			current.Reset()
+			// Skip || (treat as single separator)
+			if i+1 < len(cmd) && cmd[i+1] == '|' {
+				i++
+			}
+		case '&':
+			if i+1 < len(cmd) && cmd[i+1] == '&' {
+				segments = append(segments, current.String())
+				current.Reset()
+				i++ // Skip second &
+			} else {
+				// Background &, still part of current segment
+				current.WriteByte(ch)
+			}
+		case ';':
+			segments = append(segments, current.String())
+			current.Reset()
+		case '\'', '"':
+			// Skip quoted strings entirely
+			quote := ch
+			current.WriteByte(ch)
+			i++
+			for i < len(cmd) && cmd[i] != quote {
+				if cmd[i] == '\\' && i+1 < len(cmd) {
+					current.WriteByte(cmd[i])
+					i++
+				}
+				if i < len(cmd) {
+					current.WriteByte(cmd[i])
+					i++
+				}
+			}
+			if i < len(cmd) {
+				current.WriteByte(cmd[i])
+			}
+		default:
+			current.WriteByte(ch)
+		}
+		i++
+	}
+
+	if current.Len() > 0 {
+		segments = append(segments, current.String())
+	}
+
+	return segments
+}
+
+// extractCommandName extracts the actual command from a segment.
+// Handles: VAR=value cmd, env cmd, leading spaces, etc.
+func extractCommandName(segment string) string {
+	segment = strings.TrimSpace(segment)
+	tokens := tokenize(segment)
+
+	for _, tok := range tokens {
+		// Skip environment variable assignments (VAR=value)
+		if strings.Contains(tok, "=") && !strings.HasPrefix(tok, "-") {
+			continue
+		}
+		// Return first non-assignment token as the command
+		return tok
+	}
+	return ""
+}
+
+// tokenize splits a command segment into space-separated tokens,
+// respecting quotes.
+func tokenize(s string) []string {
+	var tokens []string
+	var current strings.Builder
+	inQuote := byte(0)
+
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+
+		if inQuote != 0 {
+			if ch == inQuote {
+				inQuote = 0
+			} else {
+				current.WriteByte(ch)
+			}
+			continue
+		}
+
+		switch ch {
+		case '\'', '"':
+			inQuote = ch
+		case ' ', '\t':
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(ch)
+		}
+	}
+
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+
+	return tokens
 }
 
 var filesystemTools = map[string]bool{

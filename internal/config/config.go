@@ -21,6 +21,7 @@ type Config struct {
 	Commands    CommandsConfig    `yaml:"commands"`
 	Tools       ToolsConfig       `yaml:"tools"`
 	Hooks       []HookConfig      `yaml:"hooks,omitempty"`
+	Reminders   []ReminderConfig  `yaml:"reminders,omitempty"`
 }
 
 // RulesConfig enables/disables semantic rules.
@@ -104,6 +105,14 @@ type HookConfig struct {
 	Paths   []string      `yaml:"paths,omitempty"`
 	Timeout time.Duration `yaml:"timeout,omitempty"`
 	OnError string        `yaml:"on_error,omitempty"`
+}
+
+// ReminderConfig defines a periodic reminder to show the agent.
+type ReminderConfig struct {
+	Name         string `yaml:"name"`
+	Message      string `yaml:"message"`
+	EveryTasks   int    `yaml:"every_tasks,omitempty"`   // Trigger every N tool invocations
+	EveryMinutes int    `yaml:"every_minutes,omitempty"` // Trigger every N minutes
 }
 
 // InvariantsConfig defines declarative structural checks.
@@ -230,6 +239,7 @@ func (c *Config) merge(overlay *Config) {
 	c.Tools.Allow = appendUnique(c.Tools.Allow, overlay.Tools.Allow)
 	c.Tools.Block = appendUnique(c.Tools.Block, overlay.Tools.Block)
 	c.Hooks = appendHooksUnique(c.Hooks, overlay.Hooks)
+	c.Reminders = appendRemindersUnique(c.Reminders, overlay.Reminders)
 }
 
 func mergeInvariants(base, overlay InvariantsConfig) InvariantsConfig {
@@ -327,6 +337,21 @@ func appendHooksUnique(base, items []HookConfig) []HookConfig {
 		if !seen[h.Name] {
 			result = append(result, h)
 			seen[h.Name] = true
+		}
+	}
+	return result
+}
+
+func appendRemindersUnique(base, items []ReminderConfig) []ReminderConfig {
+	seen := make(map[string]bool)
+	for _, r := range base {
+		seen[r.Name] = true
+	}
+	result := base
+	for _, r := range items {
+		if !seen[r.Name] {
+			result = append(result, r)
+			seen[r.Name] = true
 		}
 	}
 	return result

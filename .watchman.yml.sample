@@ -121,3 +121,11 @@ tools:
   #   - Bash
   #   - Write
   #   - Edit
+
+# Reminders: periodic notifications to the agent
+reminders: []
+  # Example: remind to re-read project guidelines
+  # - name: "re-read-agents"
+  #   message: "Consider re-reading AGENTS.md for project guidelines"
+  #   every_tasks: 50      # Trigger every 50 tool invocations
+  #   every_minutes: 30    # Or every 30 minutes (whichever comes first)

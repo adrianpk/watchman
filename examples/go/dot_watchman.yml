@@ -397,3 +397,23 @@ hooks: []
   #   paths: ["**/*.go"]
   #   timeout: 30s
   #   on_error: allow
+
+# -----------------------------------------------------------------------------
+# REMINDERS
+# -----------------------------------------------------------------------------
+# Periodic reminders shown to the agent after N tool invocations or M minutes.
+#
+# Useful for:
+#   - Prompting re-read of AGENTS.md or project guidelines
+#   - Periodic check-ins or reviews
+#   - Any time-based or task-based notifications
+#
+# State is persisted in .watchman-state in the project directory.
+# Each reminder tracks its own counters independently.
+# Reminders never block operations, only advise.
+# -----------------------------------------------------------------------------
+reminders:
+  - name: "re-read-agents"
+    message: "Consider re-reading AGENTS.md for project guidelines"
+    every_tasks: 50      # Trigger every 50 tool invocations
+    every_minutes: 30    # Or every 30 minutes (whichever comes first)

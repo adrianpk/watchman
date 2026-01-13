@@ -88,6 +88,8 @@ tools:
   block: []
 
 hooks: []
+
+reminders: []
 ```
 
 ## Rules
@@ -243,6 +245,29 @@ hooks:
 | `paths` | []string | No | [] | Glob patterns (empty = all) |
 | `timeout` | duration | No | 5s | Max execution time |
 | `on_error` | string | No | allow | Failure behavior: allow, deny |
+
+## Reminders
+
+Periodic reminders that trigger after N tool invocations or M minutes. Useful for prompting the agent to re-read project guidelines or perform periodic checks.
+
+```yaml
+reminders:
+  - name: "re-read-agents"
+    message: "Consider re-reading AGENTS.md for project guidelines"
+    every_tasks: 50      # Trigger every 50 tool invocations
+    every_minutes: 30    # Or every 30 minutes (whichever comes first)
+```
+
+State is persisted in `.watchman-state` in the project directory. Each reminder tracks its own counters independently.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Unique identifier |
+| `message` | string | Yes | - | Message shown to the agent |
+| `every_tasks` | int | No | 0 | Trigger every N tool invocations (0 = disabled) |
+| `every_minutes` | int | No | 0 | Trigger every N minutes (0 = disabled) |
+
+Reminders are evaluated post-execution (after all rules pass). They never block operations, only advise.
 
 ## Local Overrides
 
