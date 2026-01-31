@@ -16,6 +16,7 @@ type Input struct {
 	HookType  string
 	ToolName  string
 	ToolInput map[string]interface{}
+	CWD       string
 }
 
 // Result represents the evaluation result.
@@ -135,7 +136,7 @@ func (e *Evaluator) evaluateWorkspace(input Input) Result {
 	paths := ExtractPaths(input.ToolName, input.ToolInput)
 	for _, p := range paths {
 		parsed := parser.Command{Args: []string{p}}
-		decision := rule.Evaluate(parsed)
+		decision := rule.Evaluate(parsed, input.CWD)
 		if !decision.Allowed {
 			return Result{Allowed: false, Reason: decision.Reason}
 		}
@@ -148,7 +149,7 @@ func (e *Evaluator) evaluateScope(input Input) Result {
 	paths := ExtractPaths(input.ToolName, input.ToolInput)
 	for _, p := range paths {
 		parsed := parser.Command{Args: []string{p}}
-		decision := rule.Evaluate(input.ToolName, parsed)
+		decision := rule.Evaluate(input.ToolName, parsed, input.CWD)
 		if !decision.Allowed {
 			return Result{Allowed: false, Reason: decision.Reason}
 		}

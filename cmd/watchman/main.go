@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/adrianpk/watchman/internal/cli"
@@ -46,8 +47,12 @@ func runHook() error {
 
 	evaluator := hook.NewEvaluator(cfg)
 
+	// NOTE: Temp debug log
+	rawInput, _ := io.ReadAll(os.Stdin)
+	os.WriteFile("/tmp/watchman-debug.json", rawInput, 0644)
+
 	var input hookInput
-	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
+	if err := json.Unmarshal(rawInput, &input); err != nil {
 		deny("watchman input error: " + err.Error())
 		return nil
 	}
@@ -56,6 +61,7 @@ func runHook() error {
 		HookType:  input.HookType,
 		ToolName:  input.ToolName,
 		ToolInput: input.ToolInput,
+		CWD:       input.CWD,
 	})
 
 	if !result.Allowed {
@@ -71,6 +77,7 @@ type hookInput struct {
 	HookType  string                 `json:"hook_type"`
 	ToolName  string                 `json:"tool_name"`
 	ToolInput map[string]interface{} `json:"tool_input"`
+	CWD       string                 `json:"cwd"`
 }
 
 type hookOutput struct {

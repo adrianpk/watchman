@@ -127,7 +127,7 @@ func TestScopeToFilesEvaluate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.rule.Evaluate(tt.toolName, tt.cmd)
+			got := tt.rule.Evaluate(tt.toolName, tt.cmd, "")
 			if got.Allowed != tt.wantAllowed {
 				t.Errorf("Evaluate() = %v, want %v, reason: %s", got.Allowed, tt.wantAllowed, got.Reason)
 			}
@@ -199,7 +199,7 @@ func TestScopeIsInScope(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.rule.isInScope(tt.path)
+			got := tt.rule.isInScope(tt.path, "")
 			if got != tt.inScope {
 				t.Errorf("isInScope(%q) = %v, want %v", tt.path, got, tt.inScope)
 			}
@@ -238,7 +238,7 @@ func TestScopeAbsolutePathNormalization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := rule.isInScope(tt.path)
+			got := rule.isInScope(tt.path, cwd)
 			if got != tt.inScope {
 				t.Errorf("isInScope(%q) = %v, want %v", tt.path, got, tt.inScope)
 			}
@@ -260,7 +260,7 @@ func TestToRelativePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := toRelativePath(tt.path)
+			got := toRelativePath(tt.path, "")
 			want := tt.want
 			if want == "" {
 				want = tt.path

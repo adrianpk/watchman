@@ -35,7 +35,7 @@ func NewScopeToFiles(cfg *config.ScopeConfig) *ScopeToFiles {
 }
 
 // Evaluate checks if the command modifies files within the defined scope.
-func (r *ScopeToFiles) Evaluate(toolName string, cmd parser.Command) Decision {
+func (r *ScopeToFiles) Evaluate(toolName string, cmd parser.Command, cwd string) Decision {
 	if !writeTools[toolName] {
 		return Decision{Allowed: true}
 	}
@@ -48,7 +48,7 @@ func (r *ScopeToFiles) Evaluate(toolName string, cmd parser.Command) Decision {
 				Reason:  "scope.block: " + p + " matches blocked pattern",
 			}
 		}
-		if !r.isInScope(p) {
+		if !r.isInScope(p, cwd) {
 			return Decision{
 				Allowed: false,
 				Reason:  "scope.allow: " + p + " does not match any allowed pattern " + r.summarizeAllow(),
@@ -77,28 +77,32 @@ func (r *ScopeToFiles) isBlocked(p string) bool {
 
 // isInScope checks if a path is within the allowed scope.
 // If no allow patterns are defined, all paths are in scope.
-func (r *ScopeToFiles) isInScope(p string) bool {
+func (r *ScopeToFiles) isInScope(p string, cwd string) bool {
 	if len(r.Allow) == 0 {
 		return true
 	}
 
 	// Normalize path to relative for glob matching
 	// This allows patterns like "src/**/*.go" to match absolute paths
-	relPath := toRelativePath(p)
+	relPath := toRelativePath(p, cwd)
 
 	// Try both the original path and the relative version
 	return glob.MatchAny(p, r.Allow) || glob.MatchAny(relPath, r.Allow)
 }
 
 // toRelativePath converts an absolute path to relative (if within cwd).
-func toRelativePath(p string) string {
+func toRelativePath(p string, cwd string) string {
 	if !filepath.IsAbs(p) {
 		return p
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return p
+	// Use provided cwd, fallback to os.Getwd() if empty
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return p
+		}
 	}
 
 	// Check if path is within cwd

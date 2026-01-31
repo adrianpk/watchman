@@ -113,7 +113,7 @@ func TestConfineToWorkspaceEvaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := parser.Parse(tt.cmd)
-			got := rule.Evaluate(cmd)
+			got := rule.Evaluate(cmd, "")
 
 			if got.Allowed != tt.wantAllowed {
 				t.Errorf("Evaluate(%q) Allowed = %v, want %v", tt.cmd, got.Allowed, tt.wantAllowed)
@@ -261,7 +261,7 @@ func TestEvaluateWithBlockList(t *testing.T) {
 	}
 
 	cmd := parser.Command{Args: []string{".env"}}
-	decision := rule.Evaluate(cmd)
+	decision := rule.Evaluate(cmd, "")
 
 	if decision.Allowed {
 		t.Error("should block .env file")
@@ -274,7 +274,7 @@ func TestEvaluateWithAllowList(t *testing.T) {
 	}
 
 	cmd := parser.Command{Args: []string{"/tmp/test.txt"}}
-	decision := rule.Evaluate(cmd)
+	decision := rule.Evaluate(cmd, "")
 
 	if !decision.Allowed {
 		t.Error("should allow /tmp/test.txt")
@@ -333,7 +333,7 @@ func TestWorkspaceAllowsClaudeOperationalPaths(t *testing.T) {
 	// Plans should be allowed even without explicit config
 	plansPath := home + "/.claude/plans/plan.md"
 	cmd := parser.Command{Args: []string{plansPath}}
-	decision := rule.Evaluate(cmd)
+	decision := rule.Evaluate(cmd, "")
 
 	if !decision.Allowed {
 		t.Errorf("should allow Claude plans path %s: %s", plansPath, decision.Reason)
@@ -342,7 +342,7 @@ func TestWorkspaceAllowsClaudeOperationalPaths(t *testing.T) {
 	// But credentials should still be blocked (by IsAlwaysProtected)
 	credsPath := home + "/.claude/.credentials.json"
 	cmd = parser.Command{Args: []string{credsPath}}
-	decision = rule.Evaluate(cmd)
+	decision = rule.Evaluate(cmd, "")
 
 	if decision.Allowed {
 		t.Error("should block Claude credentials path")

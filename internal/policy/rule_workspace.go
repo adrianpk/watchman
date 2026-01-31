@@ -27,7 +27,7 @@ func NewConfineToWorkspace(cfg *config.WorkspaceConfig) *ConfineToWorkspace {
 }
 
 // Evaluate checks if the command attempts to access paths outside the workspace.
-func (r *ConfineToWorkspace) Evaluate(cmd parser.Command) Decision {
+func (r *ConfineToWorkspace) Evaluate(cmd parser.Command, cwd string) Decision {
 	candidates := collectPathCandidates(cmd)
 
 	for _, p := range candidates {
@@ -43,7 +43,7 @@ func (r *ConfineToWorkspace) Evaluate(cmd parser.Command) Decision {
 				Reason:  "workspace.block: " + p + " matches blocked pattern",
 			}
 		}
-		if r.violatesBoundary(p) {
+		if r.violatesBoundary(p, cwd) {
 			return Decision{
 				Allowed: false,
 				Reason:  "workspace boundary: " + p + " is outside project directory",
@@ -76,14 +76,18 @@ func (r *ConfineToWorkspace) isAllowed(p string) bool {
 
 // violatesBoundary checks if a path escapes the workspace,
 // considering allow list exceptions.
-func (r *ConfineToWorkspace) violatesBoundary(p string) bool {
+func (r *ConfineToWorkspace) violatesBoundary(p string, cwd string) bool {
 	if p == "" {
 		return false
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return true // fail closed
+	// Use provided cwd, fallback to os.Getwd() if empty
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return true // fail closed
+		}
 	}
 
 	var absPath string
@@ -164,5 +168,5 @@ func collectPathCandidates(cmd parser.Command) []string {
 // This is the legacy function for backward compatibility.
 func ViolatesWorkspaceBoundary(p string) bool {
 	rule := &ConfineToWorkspace{}
-	return rule.violatesBoundary(p)
+	return rule.violatesBoundary(p, "")
 }
