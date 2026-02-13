@@ -1,5 +1,7 @@
 # Binaries
 /watchman
+plugins/*/sentinel
+plugins/*/*.exe
 *.exe
 
 # Test output

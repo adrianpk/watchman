@@ -1,0 +1,24 @@
+provider: anthropic
+
+anthropic:
+  api_key: ${ANTHROPIC_API_KEY}
+  model: claude-sonnet-4-20250514
+  max_tokens: 1024
+
+# openai:
+#   api_key: ${OPENAI_API_KEY}
+#   model: gpt-4o
+#   max_tokens: 1024
+
+# ollama:
+#   host: http://localhost:11434
+#   model: llama3
+
+standards:
+  file: AGENTS.md
+  cache_ttl: 5m
+
+evaluation:
+  default_decision: allow
+  max_content_size: 50000
+  timeout: 25s

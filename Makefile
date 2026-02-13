@@ -12,6 +12,8 @@ help:
 	@echo "Building:"
 	@echo "  build                 - Build the binary"
 	@echo "  install               - Install the binary"
+	@echo "  install-plugins       - Install all plugins"
+	@echo "  install-all           - Install watchman + all plugins"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test                  - Run all tests"
@@ -44,6 +46,20 @@ build:
 install:
 	@echo "Installing $(BIN_NAME)..."
 	@go install ./cmd/watchman
+
+# Install all plugins
+install-plugins:
+	@echo "Installing plugins..."
+	@for plugin in plugins/*/; do \
+		if [ -f "$$plugin/Makefile" ]; then \
+			echo "  Installing $$(basename $$plugin)..."; \
+			$(MAKE) -C "$$plugin" install; \
+		fi; \
+	done
+
+# Install watchman + all plugins
+install-all: install install-plugins
+	@echo "All components installed."
 
 # Run linter
 lint:
@@ -148,4 +164,4 @@ download:
 	@go mod download
 
 # Phony targets
-.PHONY: all build install test test-v test-short test-coverage test-coverage-profile test-coverage-html test-coverage-func test-coverage-check test-coverage-summary vet check lint format help clean tidy download
+.PHONY: all build install install-plugins install-all test test-v test-short test-coverage test-coverage-profile test-coverage-html test-coverage-func test-coverage-check test-coverage-summary vet check lint format help clean tidy download
