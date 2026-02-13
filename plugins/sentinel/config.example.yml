@@ -1,24 +1,58 @@
-provider: anthropic
+# Sentinel Configuration
+# Copy to ~/.config/sentinel/config.yml
 
+# =============================================================================
+# PROVIDER SELECTION
+# =============================================================================
+
+# Single provider mode
+provider: openai
+
+# OR: Fallback chain (tries in order until one succeeds)
+# providers:
+#   - ollama      # Free, local
+#   - openai      # Cheap
+#   - anthropic   # Quality fallback
+
+# =============================================================================
+# PROVIDER CONFIGURATIONS
+# =============================================================================
+
+# Anthropic (Claude)
+# Get key: https://console.anthropic.com/settings/keys
 anthropic:
   api_key: ${ANTHROPIC_API_KEY}
   model: claude-sonnet-4-20250514
   max_tokens: 1024
 
-# openai:
-#   api_key: ${OPENAI_API_KEY}
-#   model: gpt-4o
-#   max_tokens: 1024
+# OpenAI (GPT)
+# Get key: https://platform.openai.com/api-keys
+openai:
+  api_key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+  max_tokens: 1024
 
-# ollama:
-#   host: http://localhost:11434
-#   model: llama3
+# Ollama (Local)
+# Install: curl -fsSL https://ollama.com/install.sh | sh
+# Run: ollama serve
+# Pull model: ollama pull llama3
+ollama:
+  host: http://localhost:11434
+  model: llama3
+
+# =============================================================================
+# STANDARDS
+# =============================================================================
 
 standards:
-  file: AGENTS.md
-  cache_ttl: 5m
+  file: AGENTS.md       # Path to standards document (relative to project root)
+  cache_ttl: 5m         # How long to cache the standards file
+
+# =============================================================================
+# EVALUATION
+# =============================================================================
 
 evaluation:
-  default_decision: allow
-  max_content_size: 50000
-  timeout: 25s
+  default_decision: allow   # Decision if evaluation fails: allow, deny
+  max_content_size: 50000   # Max bytes to send to AI
+  timeout: 25s              # Per-evaluation timeout

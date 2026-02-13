@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Provider   string          `yaml:"provider"`
+	Providers  []string        `yaml:"providers"`
 	Anthropic  AnthropicConfig `yaml:"anthropic"`
 	OpenAI     OpenAIConfig    `yaml:"openai"`
 	Ollama     OllamaConfig    `yaml:"ollama"`
@@ -47,10 +48,19 @@ type EvalConfig struct {
 
 func Default() *Config {
 	return &Config{
-		Provider: "anthropic",
+		Provider:  "anthropic",
+		Providers: nil,
 		Anthropic: AnthropicConfig{
 			Model:     "claude-sonnet-4-20250514",
 			MaxTokens: 1024,
+		},
+		OpenAI: OpenAIConfig{
+			Model:     "gpt-4o-mini",
+			MaxTokens: 1024,
+		},
+		Ollama: OllamaConfig{
+			Host:  "http://localhost:11434",
+			Model: "llama3",
 		},
 		Standards: StandardsConfig{
 			File:     "AGENTS.md",
@@ -62,6 +72,15 @@ func Default() *Config {
 			Timeout:         25 * time.Second,
 		},
 	}
+}
+
+// GetProviders returns the list of providers to try in order.
+// If Providers is set, use that. Otherwise, use single Provider.
+func (c *Config) GetProviders() []string {
+	if len(c.Providers) > 0 {
+		return c.Providers
+	}
+	return []string{c.Provider}
 }
 
 func Load() (*Config, error) {

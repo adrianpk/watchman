@@ -22,3 +22,4 @@ TODO_SESSION.md
 
 # Local config (use .watchman.yml.sample as template)
 .watchman.yml
+dot_watchman.yml

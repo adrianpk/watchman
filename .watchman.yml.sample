@@ -129,3 +129,17 @@ reminders: []
   #   message: "Consider re-reading AGENTS.md for project guidelines"
   #   every_tasks: 50      # Trigger every 50 tool invocations
   #   every_minutes: 30    # Or every 30 minutes (whichever comes first)
+
+# Hooks: external validation plugins
+hooks: []
+  # Sentinel: AI-powered standards evaluation
+  # Evaluates code against AGENTS.md using LLM (OpenAI, Anthropic, Ollama)
+  # Install: make install-plugins
+  # Config: ~/.config/sentinel/config.yml
+  # Docs: plugins/sentinel/docs/guide.md
+  # - name: sentinel
+  #   command: sentinel
+  #   tools: [Write, Edit]
+  #   paths: ["**/*.go"]
+  #   timeout: 30s
+  #   on_error: allow

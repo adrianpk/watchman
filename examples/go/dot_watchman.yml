@@ -381,7 +381,19 @@ tools:
 #   Output (stdout): JSON with decision (allow/deny/advise), reason/warning
 #   Alternative: Exit code 0 = allow, 1 = deny (stderr = reason)
 # -----------------------------------------------------------------------------
-hooks: []
+hooks:
+  # Sentinel: AI-powered standards evaluation
+  # Evaluates code against AGENTS.md using LLM
+  # Install: make install-plugins (from watchman root)
+  # Config: ~/.config/sentinel/config.yml
+  # Docs: plugins/sentinel/docs/guide.md
+  - name: sentinel
+    command: sentinel
+    tools: [Write, Edit]
+    paths: ["**/*.go"]
+    timeout: 30s
+    on_error: allow
+
   # Example: Go AST check for cyclomatic complexity
   # - name: "complexity-check"
   #   command: "./scripts/check-complexity.sh"
