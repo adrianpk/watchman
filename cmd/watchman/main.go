@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/adrianpk/watchman/internal/cli"
 	"github.com/adrianpk/watchman/internal/config"
 	"github.com/adrianpk/watchman/internal/hook"
 )
+
+const logFile = "/tmp/watchman.log"
 
 func main() {
 	// Handle CLI commands
@@ -41,36 +44,86 @@ func runCommand(cmd string) error {
 func runHook() error {
 	cfg, err := config.Load()
 	if err != nil {
-		deny("watchman config error: " + err.Error())
+		reason := "watchman config error: " + err.Error()
+		logDeny(hookInput{}, reason)
+		deny(reason)
 		return nil
 	}
 
 	evaluator := hook.NewEvaluator(cfg)
 
-	// NOTE: Temp debug log
 	rawInput, _ := io.ReadAll(os.Stdin)
-	os.WriteFile("/tmp/watchman-debug.json", rawInput, 0644)
 
 	var input hookInput
 	if err := json.Unmarshal(rawInput, &input); err != nil {
-		deny("watchman input error: " + err.Error())
+		reason := "watchman input error: " + err.Error()
+		logDeny(hookInput{}, reason)
+		deny(reason)
 		return nil
 	}
 
-	result := evaluator.Evaluate(hook.Input{
+	evalInput := hook.Input{
 		HookType:  input.HookType,
 		ToolName:  input.ToolName,
 		ToolInput: input.ToolInput,
 		CWD:       input.CWD,
-	})
+	}
+
+	result := evaluator.Evaluate(evalInput)
 
 	if !result.Allowed {
+		logDeny(input, result.Reason)
 		deny(result.Reason)
 		return nil
 	}
 
 	allow(result.Warning)
 	return nil
+}
+
+func logDeny(input hookInput, reason string) {
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	ts := time.Now().Format("2006-01-02 15:04:05")
+
+	fmt.Fprintf(f, "[%s] DENY\n", ts)
+	fmt.Fprintf(f, "  tool:   %s\n", input.ToolName)
+	fmt.Fprintf(f, "  cwd:    %s\n", input.CWD)
+	fmt.Fprintf(f, "  reason: %s\n", reason)
+
+	switch input.ToolName {
+	case "Bash":
+		if cmd, ok := input.ToolInput["command"].(string); ok {
+			if len(cmd) > 200 {
+				cmd = cmd[:200] + "..."
+			}
+			fmt.Fprintf(f, "  cmd:    %s\n", cmd)
+		}
+	case "Read", "Write", "Edit":
+		if fp, ok := input.ToolInput["file_path"].(string); ok {
+			fmt.Fprintf(f, "  path:   %s\n", fp)
+		}
+	case "Glob":
+		if p, ok := input.ToolInput["pattern"].(string); ok {
+			fmt.Fprintf(f, "  pattern: %s\n", p)
+		}
+		if p, ok := input.ToolInput["path"].(string); ok {
+			fmt.Fprintf(f, "  path:   %s\n", p)
+		}
+	case "Grep":
+		if p, ok := input.ToolInput["pattern"].(string); ok {
+			fmt.Fprintf(f, "  pattern: %s\n", p)
+		}
+		if p, ok := input.ToolInput["path"].(string); ok {
+			fmt.Fprintf(f, "  path:   %s\n", p)
+		}
+	}
+
+	fmt.Fprintln(f, "")
 }
 
 type hookInput struct {
@@ -112,7 +165,8 @@ func deny(reason string) {
 		},
 	}
 	json.NewEncoder(os.Stdout).Encode(out)
-	fmt.Fprintln(os.Stderr, reason)
+	ts := time.Now().Format("15:04:05")
+	fmt.Fprintf(os.Stderr, "[%s] %s\n", ts, reason)
 	os.Exit(2)
 }
 
