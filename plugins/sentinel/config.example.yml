@@ -45,7 +45,7 @@ ollama:
 # =============================================================================
 
 standards:
-  file: AGENTS.md       # Path to standards document (relative to project root)
+  file: AGENTS.md       # ...or CLAUDE.md, CODE_STANDARDS.md, docs/rules.md, etc.
   cache_ttl: 5m         # How long to cache the standards file
 
 # =============================================================================

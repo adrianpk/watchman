@@ -43,3 +43,4 @@ watchman init   # Create global config
 - [Rules](docs/rules.md) - Detailed rule documentation
 - [Invariants](docs/invariants.md) - Declarative structural checks
 - [Examples](examples/) - Sample configurations
+- [Sentinel](plugins/sentinel/) - AI-powered code standards evaluation plugin

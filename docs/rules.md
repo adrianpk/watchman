@@ -337,6 +337,8 @@ Watchman provides built-in rules, but every project has unique requirements. Ext
 - Enforce domain-specific constraints
 - Build reusable rule packages
 
+Hooks can be simple shell scripts, compiled binaries, or AI powered evaluators. The [Sentinel plugin](../plugins/sentinel/) is an example of an AI based hook that evaluates code against natural language standards, useful for semantic checks that would be complex to implement algorithmically. However, many validation needs are better served by deterministic scripts (faster, no API costs, predictable behavior).
+
 ### Configuration
 
 ```yaml

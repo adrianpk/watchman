@@ -245,10 +245,9 @@ anthropic:
 
 ```markdown
 # Good
-## Error Messages
-- Use "cannot" for capability limitations: "cannot connect to database"
-- Use "error:" for unexpected failures: "error: disk full"
-- Never use "Failed to" (AI cliché)
+## Naming
+- Prefer short names in small scopes: `cfg` over `configuration`
+- Never use "Helper" or "Utils" suffixes (lazy naming)
 ```
 
 ### Group by Category
