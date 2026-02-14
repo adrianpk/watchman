@@ -83,6 +83,21 @@ func IsAddCommand(command string) bool {
 	return strings.Contains(command, "git") && strings.Contains(command, "add")
 }
 
+// IsJJCommand checks if a bash command is a jj command.
+func IsJJCommand(command string) bool {
+	return strings.Contains(command, "jj")
+}
+
+// IsJJCommitCommand checks if a bash command creates or finalizes a jj commit.
+func IsJJCommitCommand(command string) bool {
+	if !IsJJCommand(command) {
+		return false
+	}
+	return strings.Contains(command, "new") ||
+		strings.Contains(command, "commit") ||
+		strings.Contains(command, "squash")
+}
+
 // ExtractAddFiles extracts file paths from a git add command.
 func ExtractAddFiles(command string) []string {
 	var files []string
@@ -125,6 +140,64 @@ func ExtractAddFiles(command string) []string {
 	}
 
 	return files
+}
+
+// GetJJWorkingDiff retrieves the working copy diff from jj.
+func GetJJWorkingDiff(workDir string) (*StagedDiff, error) {
+	files, err := getJJChangedFiles(workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(files) == 0 {
+		return &StagedDiff{}, nil
+	}
+
+	content, err := getJJDiffContent(workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return &StagedDiff{
+		Files:   files,
+		Content: content,
+		Size:    len(content),
+	}, nil
+}
+
+// getJJChangedFiles returns the list of changed file paths in jj working copy.
+func getJJChangedFiles(workDir string) ([]string, error) {
+	cmd := exec.Command("jj", "diff", "-r", "@", "--name-only")
+	cmd.Dir = workDir
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	output := strings.TrimSpace(stdout.String())
+	if output == "" {
+		return nil, nil
+	}
+
+	return strings.Split(output, "\n"), nil
+}
+
+// getJJDiffContent returns the full diff content from jj working copy.
+func getJJDiffContent(workDir string) (string, error) {
+	cmd := exec.Command("jj", "diff", "-r", "@", "--git")
+	cmd.Dir = workDir
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+
+	return stdout.String(), nil
 }
 
 // ReadFiles reads the content of multiple files and concatenates them.

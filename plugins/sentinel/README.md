@@ -10,7 +10,7 @@ AI-powered code standards evaluation plugin for Watchman.
 
 ## Overview
 
-Sentinel evaluates code changes against natural language standards defined in `AGENTS.md` using AI. It acts as a semantic validation layer that catches issues pattern matching cannot:
+Sentinel evaluates code changes against natural language standards defined in `AGENTS.md`, `CLAUDE.md`, or any specification file you configure. It acts as a semantic validation layer that catches issues pattern matching cannot:
 
 - "Exported functions must have doc comments"
 - "No magic numbers"
@@ -40,22 +40,24 @@ hooks:
 
 ## Providers
 
-| Provider | Status | Cost | Notes |
-|----------|--------|------|-------|
-| Anthropic | Ready | ~$1-2/day | Best quality |
-| OpenAI | Ready | ~$0.50/day | Good balance |
-| Ollama | Ready | Free | Local, requires setup |
+| Provider | Status | Notes |
+|----------|--------|-------|
+| Anthropic | Ready | Claude models |
+| OpenAI | Ready | GPT models |
+| Ollama | Ready | Local, free, requires setup |
 
 ### Fallback Chain
 
-Try providers in order until one succeeds:
+Providers are tried in the order you define until one succeeds:
 
 ```yaml
 providers:
-  - ollama      # Free, local
-  - openai      # Cheap
-  - anthropic   # Quality fallback
+  - ollama      # First choice
+  - openai      # Second choice
+  - anthropic   # Third choice
 ```
+
+Configure the order based on your needs (cost, quality, availability).
 
 ## Configuration
 
@@ -117,7 +119,7 @@ evaluation:
 **Hook configuration for commits_only:**
 
 ```yaml
-# .watchman.yml
+# .watchman.yml - Git only
 hooks:
   - name: sentinel
     command: sentinel
@@ -127,11 +129,25 @@ hooks:
     on_error: allow
 ```
 
-**Note:** The `match_command` regex captures both `git add` and `git commit`:
-- On `git add`: Evaluates the files being staged before they enter the index
-- On `git commit`: Evaluates the staged diff before the commit is created
+```yaml
+# .watchman.yml - Git and jj (jujutsu)
+hooks:
+  - name: sentinel
+    command: sentinel
+    tools: [Bash]
+    match_command: "(git.*(add|commit))|(jj.*(new|commit|squash))"
+    timeout: 60s
+    on_error: allow
+```
 
-This ensures code is validated at both stages, catching issues early.
+**Git commands:**
+- `git add`: Evaluates files before staging
+- `git commit`: Evaluates the staged diff
+
+**jj commands:**
+- `jj new`: Evaluates working copy before creating new commit
+- `jj commit`: Evaluates working copy before finalizing
+- `jj squash`: Evaluates before squashing changes
 
 ## Troubleshooting
 
@@ -143,8 +159,3 @@ This ensures code is validated at both stages, catching issues early.
 
 See [User Guide](docs/guide.md) for detailed troubleshooting.
 
-## Future Considerations
-
-- **Skip on heuristic failure**: If Watchman's deterministic rules already deny, skip the AI roundtrip
-- **Selective evaluation**: Only invoke sentinel for certain change types (new files, large diffs, specific patterns)
-- **Large diff handling**: Strategy for commits exceeding token limits (truncate with warning, request smaller commit, or chunked evaluation with shared context)

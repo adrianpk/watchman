@@ -65,6 +65,11 @@ func (p *Processor) processCommitsOnly(ctx context.Context, input types.HookInpu
 		return p.processGitCommit(ctx, input)
 	}
 
+	// Handle jj commit commands: evaluate working copy diff
+	if git.IsJJCommitCommand(command) {
+		return p.processJJCommit(ctx, input)
+	}
+
 	return types.HookOutput{Decision: "allow"}, nil
 }
 
@@ -116,6 +121,37 @@ func (p *Processor) processGitCommit(ctx context.Context, input types.HookInput)
 
 	commitInput := types.HookInput{
 		ToolName:   "Commit",
+		ToolInput:  map[string]any{"content": diff.Content, "files": diff.Files},
+		Paths:      diff.Files,
+		WorkingDir: input.WorkingDir,
+	}
+
+	output, err := p.evaluator.Evaluate(ctx, commitInput)
+	if err != nil {
+		return types.HookOutput{
+			Decision: p.cfg.Evaluation.DefaultDecision,
+			Warning:  "evaluation error: " + err.Error(),
+		}, nil
+	}
+	return output, nil
+}
+
+// processJJCommit evaluates the jj working copy diff.
+func (p *Processor) processJJCommit(ctx context.Context, input types.HookInput) (types.HookOutput, error) {
+	diff, err := git.GetJJWorkingDiff(input.WorkingDir)
+	if err != nil {
+		return types.HookOutput{
+			Decision: p.cfg.Evaluation.DefaultDecision,
+			Warning:  "failed to get jj diff: " + err.Error(),
+		}, nil
+	}
+
+	if len(diff.Files) == 0 {
+		return types.HookOutput{Decision: "allow"}, nil
+	}
+
+	commitInput := types.HookInput{
+		ToolName:   "JJCommit",
 		ToolInput:  map[string]any{"content": diff.Content, "files": diff.Files},
 		Paths:      diff.Files,
 		WorkingDir: input.WorkingDir,
