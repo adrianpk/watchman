@@ -70,6 +70,11 @@ func IsAlwaysProtected(p string) bool {
 
 // resolvePath converts a path to absolute form.
 func resolvePath(p string) string {
+	if strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			p = filepath.Join(home, p[2:])
+		}
+	}
 	if filepath.IsAbs(p) {
 		return filepath.Clean(p)
 	}
@@ -77,6 +82,20 @@ func resolvePath(p string) string {
 		return filepath.Clean(filepath.Join(cwd, p))
 	}
 	return filepath.Clean(p)
+}
+
+// MatchProtectedPath checks if a path matches a protected pattern.
+// Supports ~/ expansion and directory patterns (ending with /).
+func MatchProtectedPath(path, pattern string) bool {
+	absPath := resolvePath(path)
+
+	// Check if pattern is a filename (no path separators)
+	if !strings.Contains(pattern, "/") {
+		filename := filepath.Base(absPath)
+		return filename == pattern
+	}
+
+	return matchPath(absPath, pattern)
 }
 
 // matchPath checks if a path matches a pattern.

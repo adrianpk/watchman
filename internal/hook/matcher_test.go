@@ -127,7 +127,7 @@ func TestHookMatcherMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := m.Matches(tt.hook, tt.toolName, tt.paths)
+			got := m.Matches(tt.hook, tt.toolName, tt.paths, "")
 			if got != tt.want {
 				t.Errorf("Matches() = %v, want %v", got, tt.want)
 			}

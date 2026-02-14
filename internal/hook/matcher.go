@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/adrianpk/watchman/internal/config"
@@ -15,11 +16,18 @@ func NewHookMatcher() *HookMatcher {
 	return &HookMatcher{}
 }
 
-// Matches checks if a hook should be triggered for the given tool and paths.
-// Both tool AND path (if patterns defined) must match.
-func (m *HookMatcher) Matches(hookCfg *config.HookConfig, toolName string, paths []string) bool {
+// Matches checks if a hook should be triggered for the given tool, paths, and command.
+// Tool must match. If match_command is defined, command must match the regex.
+// If paths are defined, at least one path must match.
+func (m *HookMatcher) Matches(hookCfg *config.HookConfig, toolName string, paths []string, command string) bool {
 	if !m.matchesTool(hookCfg.Tools, toolName) {
 		return false
+	}
+
+	if hookCfg.MatchCommand != "" {
+		if !m.matchesCommand(hookCfg.MatchCommand, command) {
+			return false
+		}
 	}
 
 	if len(hookCfg.Paths) == 0 {
@@ -27,6 +35,14 @@ func (m *HookMatcher) Matches(hookCfg *config.HookConfig, toolName string, paths
 	}
 
 	return m.matchesAnyPath(hookCfg.Paths, paths)
+}
+
+func (m *HookMatcher) matchesCommand(pattern, command string) bool {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(command)
 }
 
 func (m *HookMatcher) matchesTool(tools []string, toolName string) bool {

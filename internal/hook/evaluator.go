@@ -2,8 +2,12 @@
 package hook
 
 import (
+	"context"
+	"encoding/json"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/adrianpk/watchman/internal/config"
 	"github.com/adrianpk/watchman/internal/parser"
@@ -28,10 +32,11 @@ type Result struct {
 
 // Evaluator evaluates hook inputs against configured rules.
 type Evaluator struct {
-	cfg          *config.Config
-	hookMatcher  *HookMatcher
-	hookExec     *HookExecutor
-	stateManager *state.Manager
+	cfg                *config.Config
+	hookMatcher        *HookMatcher
+	hookExec           *HookExecutor
+	stateManager       *state.Manager
+	hookProtectedPaths map[string][]string // hook name -> protected paths
 }
 
 // NewEvaluator creates a new hook evaluator.
@@ -39,11 +44,26 @@ func NewEvaluator(cfg *config.Config) *Evaluator {
 	sm := state.NewManager()
 	_ = sm.Load() // Ignore error, use fresh state if load fails
 
-	return &Evaluator{
-		cfg:          cfg,
-		hookMatcher:  NewHookMatcher(),
-		hookExec:     NewHookExecutor(),
-		stateManager: sm,
+	eval := &Evaluator{
+		cfg:                cfg,
+		hookMatcher:        NewHookMatcher(),
+		hookExec:           NewHookExecutor(),
+		stateManager:       sm,
+		hookProtectedPaths: make(map[string][]string),
+	}
+
+	eval.loadHookProtectedPaths()
+
+	return eval
+}
+
+// loadHookProtectedPaths queries each hook for its protected paths.
+func (e *Evaluator) loadHookProtectedPaths() {
+	for _, hook := range e.cfg.Hooks {
+		paths := queryHookProtectedPaths(hook.Command)
+		if len(paths) > 0 {
+			e.hookProtectedPaths[hook.Name] = paths
+		}
 	}
 }
 
@@ -78,6 +98,9 @@ func (e *Evaluator) Evaluate(input Input) Result {
 	for _, p := range paths {
 		if policy.IsAlwaysProtected(p) {
 			return Result{Allowed: false, Reason: "path is protected and cannot be accessed. User must perform this action manually."}
+		}
+		if hook := e.isHookProtected(p); hook != "" {
+			return Result{Allowed: false, Reason: "path is protected by hook " + hook + ". User must perform this action manually."}
 		}
 	}
 
@@ -209,10 +232,13 @@ func (e *Evaluator) evaluateHooks(input Input) Result {
 
 	var warnings []string
 
+	// Extract command for match_command filtering
+	command, _ := input.ToolInput["command"].(string)
+
 	for i := range e.cfg.Hooks {
 		hookCfg := &e.cfg.Hooks[i]
 
-		if !e.hookMatcher.Matches(hookCfg, input.ToolName, paths) {
+		if !e.hookMatcher.Matches(hookCfg, input.ToolName, paths, command) {
 			continue
 		}
 
@@ -316,6 +342,39 @@ func (e *Evaluator) isCommandBlocked(cmd string) string {
 		}
 	}
 	return ""
+}
+
+// isHookProtected checks if a path is protected by any hook's protected paths.
+// Returns the hook name if protected, empty string otherwise.
+func (e *Evaluator) isHookProtected(path string) string {
+	for hookName, patterns := range e.hookProtectedPaths {
+		for _, pattern := range patterns {
+			if policy.MatchProtectedPath(path, pattern) {
+				return hookName
+			}
+		}
+	}
+	return ""
+}
+
+// queryHookProtectedPaths executes a hook command with --protected-paths
+// and returns the list of paths the hook wants protected.
+func queryHookProtectedPaths(command string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command, "--protected-paths")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var paths []string
+	if err := json.Unmarshal(output, &paths); err != nil {
+		return nil
+	}
+
+	return paths
 }
 
 // isCommandInPosition checks if pattern appears as an actual command

@@ -162,6 +162,7 @@ func deny(reason string) {
 			HookEventName:      "PreToolUse",
 			PermissionDecision: "deny",
 			Reason:             reason,
+			AdditionalContext:  reason,
 		},
 	}
 	json.NewEncoder(os.Stdout).Encode(out)

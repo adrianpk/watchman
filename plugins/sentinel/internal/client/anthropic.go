@@ -91,7 +91,14 @@ File: %s
 Content:
 %s
 
-Evaluate this action against the standards.`, req.Standards, req.ToolName, req.FilePath, req.Content)
+Evaluate this action against the standards.
+
+If there are violations:
+1. List each specific violation
+2. For each violation, explain HOW TO FIX IT with a concrete suggestion
+3. Keep the reason concise but actionable
+
+The agent receiving this feedback should be able to immediately fix the issues and retry.`, req.Standards, req.ToolName, req.FilePath, req.Content)
 }
 
 func parseResponse(msg *anthropic.Message) (types.EvalResult, error) {

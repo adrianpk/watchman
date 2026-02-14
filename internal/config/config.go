@@ -98,13 +98,15 @@ type ToolsConfig struct {
 
 // HookConfig defines an external hook executable.
 type HookConfig struct {
-	Name    string        `yaml:"name"`
-	Command string        `yaml:"command"`
-	Args    []string      `yaml:"args,omitempty"`
-	Tools   []string      `yaml:"tools"`
-	Paths   []string      `yaml:"paths,omitempty"`
-	Timeout time.Duration `yaml:"timeout,omitempty"`
-	OnError string        `yaml:"on_error,omitempty"`
+	Name           string        `yaml:"name"`
+	Command        string        `yaml:"command"`
+	Args           []string      `yaml:"args,omitempty"`
+	Tools          []string      `yaml:"tools"`
+	Paths          []string      `yaml:"paths,omitempty"`
+	MatchCommand   string        `yaml:"match_command,omitempty"`
+	Timeout        time.Duration `yaml:"timeout,omitempty"`
+	OnError        string        `yaml:"on_error,omitempty"`
+	ProtectedPaths []string      `yaml:"protected_paths,omitempty"`
 }
 
 // ReminderConfig defines a periodic reminder to show the agent.

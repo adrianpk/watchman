@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/adrianpk/watchman/plugins/sentinel/internal/client"
 	"github.com/adrianpk/watchman/plugins/sentinel/internal/config"
@@ -14,7 +15,18 @@ import (
 	"github.com/adrianpk/watchman/plugins/sentinel/internal/types"
 )
 
+// protectedPaths are paths that Sentinel needs protected from agent access.
+var protectedPaths = []string{
+	"~/.config/sentinel/",
+	".sentinel.yml",
+}
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--protected-paths" {
+		json.NewEncoder(os.Stdout).Encode(protectedPaths)
+		return
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "sentinel: %v\n", err)
 		os.Exit(1)
@@ -22,6 +34,12 @@ func main() {
 }
 
 func run() error {
+	// DEBUG: Log that sentinel was called
+	if f, err := os.OpenFile("/tmp/sentinel-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		f.WriteString("sentinel called at " + time.Now().Format(time.RFC3339) + "\n")
+		f.Close()
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
@@ -34,7 +52,7 @@ func run() error {
 
 	loader := standards.NewFileLoader(cfg.Standards.File, cfg.Standards.CacheTTL)
 	eval := evaluator.New(loader, aiClient)
-	proc := processor.New(eval, cfg.Evaluation.DefaultDecision)
+	proc := processor.New(eval, cfg)
 
 	var input types.HookInput
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {

@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config holds the complete sentinel configuration.
 type Config struct {
 	Provider   string          `yaml:"provider"`
 	Providers  []string        `yaml:"providers"`
@@ -18,32 +19,46 @@ type Config struct {
 	Evaluation EvalConfig      `yaml:"evaluation"`
 }
 
+// AnthropicConfig holds Anthropic API settings.
 type AnthropicConfig struct {
 	APIKey    string `yaml:"api_key"`
 	Model     string `yaml:"model"`
 	MaxTokens int    `yaml:"max_tokens"`
 }
 
+// OpenAIConfig holds OpenAI API settings.
 type OpenAIConfig struct {
 	APIKey    string `yaml:"api_key"`
 	Model     string `yaml:"model"`
 	MaxTokens int    `yaml:"max_tokens"`
 }
 
+// OllamaConfig holds Ollama local inference settings.
 type OllamaConfig struct {
 	Host  string `yaml:"host"`
 	Model string `yaml:"model"`
 }
 
+// StandardsConfig holds standards file location and caching settings.
 type StandardsConfig struct {
 	File     string        `yaml:"file"`
 	CacheTTL time.Duration `yaml:"cache_ttl"`
 }
 
+// EvalConfig holds evaluation behavior settings.
 type EvalConfig struct {
-	DefaultDecision string `yaml:"default_decision"`
-	MaxContentSize  int    `yaml:"max_content_size"`
+	DefaultDecision string        `yaml:"default_decision"`
+	MaxContentSize  int           `yaml:"max_content_size"`
 	Timeout         time.Duration `yaml:"timeout"`
+	Mode            string        `yaml:"mode"`
+	Batch           BatchConfig   `yaml:"batch"`
+}
+
+// BatchConfig controls how staged diffs are batched for evaluation.
+type BatchConfig struct {
+	MaxFilesPerRequest   int `yaml:"max_files_per_request"`
+	MaxContentPerRequest int `yaml:"max_content_per_request"`
+	Concurrency          int `yaml:"concurrency"`
 }
 
 func Default() *Config {
@@ -70,6 +85,12 @@ func Default() *Config {
 			DefaultDecision: "allow",
 			MaxContentSize:  50000,
 			Timeout:         25 * time.Second,
+			Mode:            "all",
+			Batch: BatchConfig{
+				MaxFilesPerRequest:   10,
+				MaxContentPerRequest: 40000,
+				Concurrency:          3,
+			},
 		},
 	}
 }
