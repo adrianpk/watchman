@@ -1,6 +1,6 @@
 # Sentinel Plugin
 
-Sentinel is an AI-powered code standards evaluation plugin for Watchman. It provides semantic validation using LLMs to evaluate code changes against natural language standards defined in `AGENTS.md`.
+Sentinel is an AI-powered code standards evaluation plugin for Watchman. It provides semantic validation using LLMs to evaluate code changes against natural language standards defined in a dedicated file (typically `CONVENTIONS.md`).
 
 ## When to Use Sentinel
 

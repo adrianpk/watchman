@@ -10,7 +10,7 @@ AI-powered code standards evaluation plugin for Watchman.
 
 ## Overview
 
-Sentinel evaluates code changes against natural language standards defined in `AGENTS.md`, `CLAUDE.md`, or any specification file you configure. It acts as a semantic validation layer that catches issues pattern matching cannot:
+Sentinel evaluates code changes against natural language standards defined in a specification file you configure (commonly `CONVENTIONS.md` or `AGENTS.md`). It acts as a semantic validation layer that catches issues pattern matching cannot:
 
 - "Exported functions must have doc comments"
 - "No magic numbers"
@@ -28,7 +28,7 @@ openai:
   api_key: ${OPENAI_API_KEY}
   model: gpt-4o-mini
 
-# 3. Create AGENTS.md in project root
+# 3. Create CONVENTIONS.md with code standards (see guide for details)
 # 4. Add hook to .watchman.yml
 hooks:
   - name: sentinel
@@ -82,7 +82,7 @@ openai:
   max_tokens: 1024
 
 standards:
-  file: AGENTS.md
+  file: CONVENTIONS.md  # Use a file with only code rules, not agent behavior
   cache_ttl: 5m
 
 evaluation:
@@ -154,8 +154,9 @@ hooks:
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `401 Unauthorized` | Missing API key | Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` |
-| `cannot load standards` | No AGENTS.md | Create in project root |
+| `cannot load standards` | No standards file | Create `CONVENTIONS.md` in project root |
 | `all providers failed` | All providers errored | Check keys, network, ollama running |
+| False positives | Standards file mixes behavior rules with code rules | Use separate files (see [guide](docs/guide.md#separate-behavior-from-code-rules)) |
 
 See [User Guide](docs/guide.md) for detailed troubleshooting.
 

@@ -78,7 +78,7 @@ func Default() *Config {
 			Model: "llama3",
 		},
 		Standards: StandardsConfig{
-			File:     "AGENTS.md",
+			File:     "CONVENTIONS.md",
 			CacheTTL: 5 * time.Minute,
 		},
 		Evaluation: EvalConfig{

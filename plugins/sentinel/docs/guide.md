@@ -59,7 +59,7 @@ export OPENAI_API_KEY=sk-...
 
 ### 3. Create Standards
 
-Create `AGENTS.md` in your project root:
+Create a standards file (e.g., `CONVENTIONS.md`) in your project root:
 
 ```markdown
 # Code Standards
@@ -204,7 +204,7 @@ ollama:
   model: llama3
 
 standards:
-  file: AGENTS.md          # Standards document path
+  file: CONVENTIONS.md     # Technical standards only (not behavior rules)
   cache_ttl: 5m            # Cache duration
 
 evaluation:
@@ -229,6 +229,55 @@ anthropic:
 ```
 
 ## Writing Effective Standards
+
+### Separate Behavior from Code Rules
+
+Standards files often serve two different audiences:
+
+1. **Agents** need behavior guidance: when to ask, what not to touch, workflow rules
+2. **Code evaluation** needs technical rules: naming, structure, patterns to avoid
+
+When Sentinel evaluates a diff against a file containing both, the LLM has no way to distinguish "this rule applies to agent behavior" from "this rule applies to code." It treats everything as potentially relevant to the code under review.
+
+For example:
+
+```markdown
+# AGENTS.md (mixed - problematic)
+
+## Behavior
+- Don't manage the dev server
+- Ask before deleting files
+
+## Code
+- No magic numbers
+- Functions must have doc comments
+```
+
+The LLM might interpret "Don't manage the dev server" as a code rule and reject changes containing "dev" in variable names or comments.
+
+**Recommended approach**: Separate concerns into two files:
+
+```markdown
+# AGENTS.md (behavior only)
+- Don't manage the dev server
+- Ask before deleting files
+- All code rules are in CONVENTIONS.md
+```
+
+```markdown
+# CONVENTIONS.md (code rules only)
+- No magic numbers
+- Functions must have doc comments
+```
+
+Then configure Sentinel to point only to the technical file:
+
+```yaml
+standards:
+  file: CONVENTIONS.md
+```
+
+This way, agents read both files for context, but Sentinel evaluates code only against technical rules.
 
 ### Be Specific
 
@@ -298,9 +347,9 @@ echo ${OPENAI_API_KEY:+set}
 
 ### "cannot load standards"
 
-`AGENTS.md` not found. Either:
-- Create it in project root
-- Set absolute path in config: `standards.file: /path/to/AGENTS.md`
+Standards file not found. Either:
+- Create `CONVENTIONS.md` in project root
+- Set path in config: `standards.file: /path/to/your-standards.md`
 
 ### "all providers failed"
 
@@ -350,7 +399,7 @@ hooks:
 
 ### Per-Project Standards
 
-Use different AGENTS.md per project:
+Use different standards files per project:
 
 ```yaml
 # In .sentinel.yml at project root
@@ -362,7 +411,7 @@ standards:
 
 ### Go Project
 
-`AGENTS.md`:
+`CONVENTIONS.md`:
 ```markdown
 # Go Standards
 
@@ -382,7 +431,7 @@ standards:
 
 ### TypeScript Project
 
-`AGENTS.md`:
+`CONVENTIONS.md`:
 ```markdown
 # TypeScript Standards
 
