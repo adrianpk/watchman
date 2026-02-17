@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/adrianpk/watchman/plugins/sentinel/internal/types"
 	"github.com/anthropics/anthropic-sdk-go"
@@ -58,22 +59,39 @@ func evaluationSchema() anthropic.ToolInputSchemaParam {
 				"enum":        []string{"allow", "advise", "deny"},
 				"description": "allow=compliant, advise=minor issues, deny=violates standards",
 			},
-			"reason": map[string]interface{}{
-				"type":        "string",
-				"description": "Explanation if deny. Empty if allow.",
-			},
 			"warning": map[string]interface{}{
 				"type":        "string",
 				"description": "Advisory note if advise. Empty otherwise.",
 			},
 			"violations": map[string]interface{}{
-				"type":        "array",
-				"items":       map[string]string{"type": "string"},
-				"description": "List of specific standard violations found",
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"rule": map[string]interface{}{
+							"type":        "string",
+							"description": "Name of the violated rule from standards (e.g., 'Comment violation', 'Test naming', 'Commit message')",
+						},
+						"file": map[string]interface{}{
+							"type":        "string",
+							"description": "Filename where violation occurs (e.g., 'namespace.go')",
+						},
+						"lines": map[string]interface{}{
+							"type":        "string",
+							"description": "Line number or range (e.g., '3', '3-4', 'N/A' for commit messages)",
+						},
+						"detail": map[string]interface{}{
+							"type":        "string",
+							"description": "Specific explanation of what is wrong and how to fix it",
+						},
+					},
+					"required": []string{"rule", "file", "lines", "detail"},
+				},
+				"description": "Structured list of violations. Required if decision is deny or advise.",
 			},
 		},
 		ExtraFields: map[string]interface{}{
-			"required": []string{"decision"},
+			"required": []string{"decision", "violations"},
 		},
 	}
 }
@@ -93,33 +111,71 @@ Content:
 
 Evaluate this action against the standards.
 
-If there are violations:
-1. List each specific violation
-2. For each violation, explain HOW TO FIX IT with a concrete suggestion
-3. Keep the reason concise but actionable
+## Response Format Requirements
 
-The agent receiving this feedback should be able to immediately fix the issues and retry.`, req.Standards, req.ToolName, req.FilePath, req.Content)
+The reason field MUST be actionable. The agent receiving this needs to:
+1. Understand which specific rule was violated
+2. Locate exactly where (file:line)
+3. Decide whether to fix or report as false positive
+
+### Single violation format:
+[RULE_NAME] in [FILE:LINE]. [SPECIFIC_DETAIL]
+
+Example: "Comment violation in namespace.go:3-4. Multi-line comment on exported type may not add value per CONVENTIONS.md"
+
+### Multiple violations format:
+Multiple violations found:
+1. [RULE] in [FILE:LINE] - [detail]
+2. [RULE] in [FILE:LINE] - [detail]
+
+### If ambiguous:
+Indicate uncertainty so the agent can decide:
+"Possible violation in namespace.go:3-4. Comment may or may not add value - REVIEW RECOMMENDED"
+
+### Bad examples (DO NOT use these vague formats):
+- "The action violates several code standards"
+- "Code style violation detected"
+- "Does not follow conventions"
+
+Be specific. Reference the exact section of standards violated.`, req.Standards, req.ToolName, req.FilePath, req.Content)
 }
 
 func parseResponse(msg *anthropic.Message) (types.EvalResult, error) {
 	for _, block := range msg.Content {
 		if block.Type == "tool_use" {
 			var result struct {
-				Decision   string   `json:"decision"`
-				Reason     string   `json:"reason"`
-				Warning    string   `json:"warning"`
-				Violations []string `json:"violations"`
+				Decision   string            `json:"decision"`
+				Warning    string            `json:"warning"`
+				Violations []types.Violation `json:"violations"`
 			}
 			if err := json.Unmarshal(block.Input, &result); err != nil {
 				return types.EvalResult{}, fmt.Errorf("cannot parse tool response: %w", err)
 			}
 			return types.EvalResult{
 				Decision:   result.Decision,
-				Reason:     result.Reason,
+				Reason:     buildReason(result.Violations),
 				Warning:    result.Warning,
 				Violations: result.Violations,
 			}, nil
 		}
 	}
 	return types.EvalResult{}, fmt.Errorf("error: no tool use block in response")
+}
+
+func buildReason(violations []types.Violation) string {
+	if len(violations) == 0 {
+		return ""
+	}
+
+	if len(violations) == 1 {
+		v := violations[0]
+		return fmt.Sprintf("%s in %s:%s. %s", v.Rule, v.File, v.Lines, v.Detail)
+	}
+
+	var lines []string
+	lines = append(lines, "Multiple violations found:")
+	for i, v := range violations {
+		lines = append(lines, fmt.Sprintf("%d. %s in %s:%s - %s", i+1, v.Rule, v.File, v.Lines, v.Detail))
+	}
+	return strings.Join(lines, "\n")
 }

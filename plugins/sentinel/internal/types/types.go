@@ -20,9 +20,16 @@ type EvalRequest struct {
 	Standards string
 }
 
+type Violation struct {
+	Rule   string `json:"rule"`
+	File   string `json:"file"`
+	Lines  string `json:"lines"`
+	Detail string `json:"detail"`
+}
+
 type EvalResult struct {
 	Decision   string
 	Reason     string
 	Warning    string
-	Violations []string
+	Violations []Violation
 }

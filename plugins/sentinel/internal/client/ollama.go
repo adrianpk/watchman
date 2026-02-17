@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/adrianpk/watchman/plugins/sentinel/internal/types"
 )
@@ -100,22 +101,24 @@ Respond with a JSON object containing:
   - "allow" = code is compliant with standards
   - "advise" = minor issues, warning only
   - "deny" = violates standards, must be blocked
-- "reason": explanation if deny (empty string if allow)
 - "warning": advisory note if advise (empty string otherwise)
-- "violations": array of specific standard violations found
+- "violations": array of violation objects, each with:
+  - "rule": name of the violated rule (e.g., "Comment violation", "Test naming")
+  - "file": filename where violation occurs
+  - "lines": line number or range (e.g., "3", "3-4", "N/A")
+  - "detail": specific explanation of what is wrong and how to fix it
 
 Example response:
-{"decision": "deny", "reason": "Missing doc comment on exported function", "warning": "", "violations": ["Exported function Foo has no doc comment"]}
+{"decision": "deny", "warning": "", "violations": [{"rule": "Comment violation", "file": "namespace.go", "lines": "3-4", "detail": "Multi-line comment on exported type may not add value per standards"}]}
 
 Respond ONLY with the JSON object, no other text.`, req.Standards, req.ToolName, req.FilePath, req.Content)
 }
 
 func parseOllamaResponse(response string) (types.EvalResult, error) {
 	var result struct {
-		Decision   string   `json:"decision"`
-		Reason     string   `json:"reason"`
-		Warning    string   `json:"warning"`
-		Violations []string `json:"violations"`
+		Decision   string            `json:"decision"`
+		Warning    string            `json:"warning"`
+		Violations []types.Violation `json:"violations"`
 	}
 
 	if err := json.Unmarshal([]byte(response), &result); err != nil {
@@ -128,8 +131,26 @@ func parseOllamaResponse(response string) (types.EvalResult, error) {
 
 	return types.EvalResult{
 		Decision:   result.Decision,
-		Reason:     result.Reason,
+		Reason:     ollamaBuildReason(result.Violations),
 		Warning:    result.Warning,
 		Violations: result.Violations,
 	}, nil
+}
+
+func ollamaBuildReason(violations []types.Violation) string {
+	if len(violations) == 0 {
+		return ""
+	}
+
+	if len(violations) == 1 {
+		v := violations[0]
+		return fmt.Sprintf("%s in %s:%s. %s", v.Rule, v.File, v.Lines, v.Detail)
+	}
+
+	var lines []string
+	lines = append(lines, "Multiple violations found:")
+	for i, v := range violations {
+		lines = append(lines, fmt.Sprintf("%d. %s in %s:%s - %s", i+1, v.Rule, v.File, v.Lines, v.Detail))
+	}
+	return strings.Join(lines, "\n")
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/adrianpk/watchman/plugins/sentinel/internal/types"
 	"github.com/openai/openai-go"
@@ -73,21 +74,38 @@ func openaiEvaluationSchema() openai.FunctionParameters {
 				"enum":        []string{"allow", "advise", "deny"},
 				"description": "allow=compliant, advise=minor issues, deny=violates standards",
 			},
-			"reason": map[string]any{
-				"type":        "string",
-				"description": "Explanation if deny. Empty if allow.",
-			},
 			"warning": map[string]any{
 				"type":        "string",
 				"description": "Advisory note if advise. Empty otherwise.",
 			},
 			"violations": map[string]any{
-				"type":        "array",
-				"items":       map[string]string{"type": "string"},
-				"description": "List of specific standard violations found",
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"rule": map[string]any{
+							"type":        "string",
+							"description": "Name of the violated rule from standards",
+						},
+						"file": map[string]any{
+							"type":        "string",
+							"description": "Filename where violation occurs",
+						},
+						"lines": map[string]any{
+							"type":        "string",
+							"description": "Line number or range (e.g., '3', '3-4', 'N/A')",
+						},
+						"detail": map[string]any{
+							"type":        "string",
+							"description": "Specific explanation of what is wrong and how to fix it",
+						},
+					},
+					"required": []string{"rule", "file", "lines", "detail"},
+				},
+				"description": "Structured list of violations. Required if decision is deny or advise.",
 			},
 		},
-		"required": []string{"decision"},
+		"required": []string{"decision", "violations"},
 	}
 }
 
@@ -107,10 +125,9 @@ func parseOpenAIResponse(resp *openai.ChatCompletion) (types.EvalResult, error) 
 	}
 
 	var result struct {
-		Decision   string   `json:"decision"`
-		Reason     string   `json:"reason"`
-		Warning    string   `json:"warning"`
-		Violations []string `json:"violations"`
+		Decision   string            `json:"decision"`
+		Warning    string            `json:"warning"`
+		Violations []types.Violation `json:"violations"`
 	}
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &result); err != nil {
 		return types.EvalResult{}, fmt.Errorf("cannot parse function arguments: %w", err)
@@ -118,8 +135,26 @@ func parseOpenAIResponse(resp *openai.ChatCompletion) (types.EvalResult, error) 
 
 	return types.EvalResult{
 		Decision:   result.Decision,
-		Reason:     result.Reason,
+		Reason:     buildReasonFromViolations(result.Violations),
 		Warning:    result.Warning,
 		Violations: result.Violations,
 	}, nil
+}
+
+func buildReasonFromViolations(violations []types.Violation) string {
+	if len(violations) == 0 {
+		return ""
+	}
+
+	if len(violations) == 1 {
+		v := violations[0]
+		return fmt.Sprintf("%s in %s:%s. %s", v.Rule, v.File, v.Lines, v.Detail)
+	}
+
+	var lines []string
+	lines = append(lines, "Multiple violations found:")
+	for i, v := range violations {
+		lines = append(lines, fmt.Sprintf("%d. %s in %s:%s - %s", i+1, v.Rule, v.File, v.Lines, v.Detail))
+	}
+	return strings.Join(lines, "\n")
 }
