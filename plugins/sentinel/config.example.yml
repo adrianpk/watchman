@@ -56,3 +56,7 @@ evaluation:
   default_decision: allow   # Decision if evaluation fails: allow, deny
   max_content_size: 50000   # Max bytes to send to AI
   timeout: 25s              # Per-evaluation timeout
+  threshold: 0.85           # Confidence threshold (0.0-1.0)
+                            # Only block if AI confidence >= threshold
+                            # Lower = more permissive, higher = stricter
+                            # Set to 0 to disable (block on any violation)

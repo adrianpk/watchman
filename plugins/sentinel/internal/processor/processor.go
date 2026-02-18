@@ -41,7 +41,31 @@ func (p *Processor) processAll(ctx context.Context, input types.HookInput) (type
 			Warning:  "evaluation error: " + err.Error(),
 		}, nil
 	}
-	return output, nil
+	return p.applyThreshold(output), nil
+}
+
+// applyThreshold downgrades deny to advise if confidence is below threshold.
+func (p *Processor) applyThreshold(output types.HookOutput) types.HookOutput {
+	if output.Decision != "deny" || p.cfg.Evaluation.Threshold <= 0 {
+		return output
+	}
+
+	// Check if all violations are below threshold
+	allBelowThreshold := true
+	for _, v := range output.Violations {
+		if v.Confidence >= p.cfg.Evaluation.Threshold {
+			allBelowThreshold = false
+			break
+		}
+	}
+
+	if allBelowThreshold && len(output.Violations) > 0 {
+		output.Decision = "advise"
+		output.Warning = output.Reason
+		output.Reason = ""
+	}
+
+	return output
 }
 
 // processCommitsOnly evaluates on git add/commit, skipping other operations.
@@ -102,7 +126,7 @@ func (p *Processor) processGitAdd(ctx context.Context, input types.HookInput, co
 			Warning:  "evaluation error: " + err.Error(),
 		}, nil
 	}
-	return output, nil
+	return p.applyThreshold(output), nil
 }
 
 // processGitCommit evaluates the staged diff.
@@ -133,7 +157,7 @@ func (p *Processor) processGitCommit(ctx context.Context, input types.HookInput)
 			Warning:  "evaluation error: " + err.Error(),
 		}, nil
 	}
-	return output, nil
+	return p.applyThreshold(output), nil
 }
 
 // processJJCommit evaluates the jj working copy diff.
@@ -164,5 +188,5 @@ func (p *Processor) processJJCommit(ctx context.Context, input types.HookInput) 
 			Warning:  "evaluation error: " + err.Error(),
 		}, nil
 	}
-	return output, nil
+	return p.applyThreshold(output), nil
 }

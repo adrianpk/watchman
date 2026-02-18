@@ -36,7 +36,26 @@ func (a *AnthropicClient) Evaluate(ctx context.Context, req types.EvalRequest) (
 		Model:     a.model,
 		MaxTokens: int64(a.maxTokens),
 		System: []anthropic.TextBlockParam{
-			{Text: "You are a code standards evaluator. Evaluate the action against the provided standards. You MUST use the evaluate_action tool to respond."},
+			{Text: `You are a conservative code standards evaluator.
+
+DECISION GUIDE:
+- DENY: Only for clear, explicit violations (confidence >= 0.9)
+- ADVISE: For ambiguous cases worth reviewing (confidence 0.5-0.9)
+- ALLOW: When compliant or rule doesn't apply (confidence < 0.5)
+
+CRITICAL RULES:
+- Never deny based on interpretation - use advise instead
+- Never extrapolate rules beyond their literal meaning
+- The standards document is the ONLY source of truth
+- When in doubt, advise (warn) rather than deny (block)
+
+For each potential violation, assess your confidence (0.0-1.0):
+- 1.0 = explicitly and unambiguously prohibited
+- 0.7 = likely violation but requires some interpretation
+- 0.5 = ambiguous, could go either way
+- <0.5 = probably not a violation
+
+Default to ALLOW. You MUST use the evaluate_action tool to respond.`},
 		},
 		Tools:      []anthropic.ToolUnionParam{tool},
 		ToolChoice: anthropic.ToolChoiceParamOfToolChoiceTool("evaluate_action"),
@@ -84,8 +103,14 @@ func evaluationSchema() anthropic.ToolInputSchemaParam {
 							"type":        "string",
 							"description": "Specific explanation of what is wrong and how to fix it",
 						},
+						"confidence": map[string]interface{}{
+							"type":        "number",
+							"minimum":     0.0,
+							"maximum":     1.0,
+							"description": "Confidence this is a real violation: 1.0=explicitly prohibited, 0.7=likely, 0.5=ambiguous, <0.5=probably not",
+						},
 					},
-					"required": []string{"rule", "file", "lines", "detail"},
+					"required": []string{"rule", "file", "lines", "detail", "confidence"},
 				},
 				"description": "Structured list of violations. Required if decision is deny or advise.",
 			},

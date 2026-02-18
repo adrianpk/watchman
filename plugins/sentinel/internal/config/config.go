@@ -51,6 +51,7 @@ type EvalConfig struct {
 	MaxContentSize  int           `yaml:"max_content_size"`
 	Timeout         time.Duration `yaml:"timeout"`
 	Mode            string        `yaml:"mode"`
+	Threshold       float64       `yaml:"threshold"`
 	Batch           BatchConfig   `yaml:"batch"`
 }
 
@@ -86,6 +87,7 @@ func Default() *Config {
 			MaxContentSize:  50000,
 			Timeout:         25 * time.Second,
 			Mode:            "all",
+			Threshold:       0.90,
 			Batch: BatchConfig{
 				MaxFilesPerRequest:   10,
 				MaxContentPerRequest: 40000,

@@ -272,4 +272,32 @@ func TestToRelativePath(t *testing.T) {
 	}
 }
 
+func TestScopeDotfiles(t *testing.T) {
+	rule := &ScopeToFiles{Allow: []string{".dockerignore", ".gitignore", "Dockerfile"}}
+
+	cwd := "/home/user/project"
+
+	tests := []struct {
+		name    string
+		path    string
+		inScope bool
+	}{
+		{"relative dockerignore", ".dockerignore", true},
+		{"relative gitignore", ".gitignore", true},
+		{"absolute dockerignore", "/home/user/project/.dockerignore", true},
+		{"absolute gitignore", "/home/user/project/.gitignore", true},
+		{"dockerfile", "Dockerfile", true},
+		{"not in scope", "random.txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rule.isInScope(tt.path, cwd)
+			if got != tt.inScope {
+				t.Errorf("isInScope(%q) = %v, want %v", tt.path, got, tt.inScope)
+			}
+		})
+	}
+}
+
 // Note: matchGlob and matchDoublestar tests are now in internal/glob/glob_test.go

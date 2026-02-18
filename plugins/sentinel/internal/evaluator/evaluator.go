@@ -46,8 +46,9 @@ func (e *Evaluator) Evaluate(ctx context.Context, input types.HookInput) (types.
 	}
 
 	return types.HookOutput{
-		Decision: result.Decision,
-		Reason:   result.Reason,
-		Warning:  result.Warning,
+		Decision:   result.Decision,
+		Reason:     result.Reason,
+		Warning:    result.Warning,
+		Violations: result.Violations,
 	}, nil
 }

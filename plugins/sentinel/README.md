@@ -157,6 +157,25 @@ hooks:
 | `cannot load standards` | No standards file | Create `CONVENTIONS.md` in project root |
 | `all providers failed` | All providers errored | Check keys, network, ollama running |
 | False positives | Standards file mixes behavior rules with code rules | Use separate files (see [guide](docs/guide.md#separate-behavior-from-code-rules)) |
+| Too many false positives | AI over-interprets rules | Lower the confidence threshold (see below) |
+
+## Confidence Threshold
+
+Sentinel uses a confidence-based system to reduce false positives. The AI reports how confident it is that each violation is real (0.0-1.0), and only blocks if confidence meets the threshold.
+
+```yaml
+evaluation:
+  threshold: 0.85  # Default: only block if 85%+ confident
+```
+
+| Threshold | Behavior |
+|-----------|----------|
+| `0.9` | Very strict - only block explicit violations |
+| `0.85` | Default - good balance |
+| `0.7` | Permissive - block likely violations |
+| `0` | Disable - block on any violation |
+
+When confidence is below threshold, the decision downgrades from `deny` to `advise` (warning only).
 
 See [User Guide](docs/guide.md) for detailed troubleshooting.
 

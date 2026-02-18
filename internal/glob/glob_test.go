@@ -79,6 +79,29 @@ func TestMatchAbsolutePath(t *testing.T) {
 	}
 }
 
+func TestMatchDotfiles(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		pattern string
+		want    bool
+	}{
+		{"exact dotfile", ".dockerignore", ".dockerignore", true},
+		{"exact gitignore", ".gitignore", ".gitignore", true},
+		{"dotfile in path", "some/path/.dockerignore", ".dockerignore", true},
+		{"absolute dotfile", "/home/user/project/.dockerignore", ".dockerignore", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Match(tt.path, tt.pattern)
+			if got != tt.want {
+				t.Errorf("Match(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMatchAny(t *testing.T) {
 	tests := []struct {
 		name     string

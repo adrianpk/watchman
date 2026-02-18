@@ -1,6 +1,7 @@
 package main
 
 import (
+	cryptoRand "crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +37,8 @@ func runCommand(cmd string) error {
 		return cli.RunInit(local)
 	case "setup":
 		return cli.RunSetup()
+	case "log":
+		return cli.RunLog(os.Args[2:])
 	default:
 		return fmt.Errorf("unknown command: %s", cmd)
 	}
@@ -45,8 +48,8 @@ func runHook() error {
 	cfg, err := config.Load()
 	if err != nil {
 		reason := "watchman config error: " + err.Error()
-		logDeny(hookInput{}, reason)
-		deny(reason)
+		id := logDeny(hookInput{}, reason)
+		deny(reason, id)
 		return nil
 	}
 
@@ -57,8 +60,8 @@ func runHook() error {
 	var input hookInput
 	if err := json.Unmarshal(rawInput, &input); err != nil {
 		reason := "watchman input error: " + err.Error()
-		logDeny(hookInput{}, reason)
-		deny(reason)
+		id := logDeny(hookInput{}, reason)
+		deny(reason, id)
 		return nil
 	}
 
@@ -72,8 +75,8 @@ func runHook() error {
 	result := evaluator.Evaluate(evalInput)
 
 	if !result.Allowed {
-		logDeny(input, result.Reason)
-		deny(result.Reason)
+		id := logDeny(input, result.Reason)
+		deny(result.Reason, id)
 		return nil
 	}
 
@@ -81,49 +84,67 @@ func runHook() error {
 	return nil
 }
 
-func logDeny(input hookInput, reason string) {
+type logEntry struct {
+	Timestamp string                 `json:"ts"`
+	ID        string                 `json:"id"`
+	Decision  string                 `json:"decision"`
+	Tool      string                 `json:"tool"`
+	CWD       string                 `json:"cwd"`
+	Reason    string                 `json:"reason"`
+	Command   string                 `json:"cmd,omitempty"`
+	Path      string                 `json:"path,omitempty"`
+	Pattern   string                 `json:"pattern,omitempty"`
+	Input     map[string]interface{} `json:"input,omitempty"`
+}
+
+func generateID() string {
+	b := make([]byte, 4)
+	if _, err := io.ReadFull(cryptoRand.Reader, b); err != nil {
+		return fmt.Sprintf("%08x", time.Now().UnixNano()&0xFFFFFFFF)
+	}
+	return fmt.Sprintf("%08x", b)
+}
+
+func logDeny(input hookInput, reason string) string {
+	id := generateID()
+
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return
+		return id
 	}
 	defer f.Close()
 
-	ts := time.Now().Format("2006-01-02 15:04:05")
-
-	fmt.Fprintf(f, "[%s] DENY\n", ts)
-	fmt.Fprintf(f, "  tool:   %s\n", input.ToolName)
-	fmt.Fprintf(f, "  cwd:    %s\n", input.CWD)
-	fmt.Fprintf(f, "  reason: %s\n", reason)
+	entry := logEntry{
+		Timestamp: time.Now().Format(time.RFC3339),
+		ID:        id,
+		Decision:  "deny",
+		Tool:      input.ToolName,
+		CWD:       input.CWD,
+		Reason:    reason,
+	}
 
 	switch input.ToolName {
 	case "Bash":
 		if cmd, ok := input.ToolInput["command"].(string); ok {
-			if len(cmd) > 200 {
-				cmd = cmd[:200] + "..."
-			}
-			fmt.Fprintf(f, "  cmd:    %s\n", cmd)
+			entry.Command = cmd
 		}
 	case "Read", "Write", "Edit":
 		if fp, ok := input.ToolInput["file_path"].(string); ok {
-			fmt.Fprintf(f, "  path:   %s\n", fp)
+			entry.Path = fp
 		}
-	case "Glob":
+	case "Glob", "Grep":
 		if p, ok := input.ToolInput["pattern"].(string); ok {
-			fmt.Fprintf(f, "  pattern: %s\n", p)
+			entry.Pattern = p
 		}
 		if p, ok := input.ToolInput["path"].(string); ok {
-			fmt.Fprintf(f, "  path:   %s\n", p)
+			entry.Path = p
 		}
-	case "Grep":
-		if p, ok := input.ToolInput["pattern"].(string); ok {
-			fmt.Fprintf(f, "  pattern: %s\n", p)
-		}
-		if p, ok := input.ToolInput["path"].(string); ok {
-			fmt.Fprintf(f, "  path:   %s\n", p)
-		}
+	default:
+		entry.Input = input.ToolInput
 	}
 
-	fmt.Fprintln(f, "")
+	json.NewEncoder(f).Encode(entry)
+	return id
 }
 
 type hookInput struct {
@@ -156,18 +177,20 @@ func allow(additionalContext string) {
 	os.Exit(0)
 }
 
-func deny(reason string) {
+func deny(reason, id string) {
+	reasonWithID := fmt.Sprintf("[%s] %s", id, reason)
+	hint := fmt.Sprintf("Run `watchman log` for details (id: %s)", id)
 	out := hookOutput{
 		HookSpecificOutput: &hookSpecificOutput{
 			HookEventName:      "PreToolUse",
 			PermissionDecision: "deny",
-			Reason:             reason,
-			AdditionalContext:  reason,
+			Reason:             reasonWithID,
+			AdditionalContext:  hint,
 		},
 	}
 	json.NewEncoder(os.Stdout).Encode(out)
 	ts := time.Now().Format("15:04:05")
-	fmt.Fprintf(os.Stderr, "[%s] %s\n", ts, reason)
+	fmt.Fprintf(os.Stderr, "[%s] [%s] %s\n", ts, id, reason)
 	os.Exit(2)
 }
 

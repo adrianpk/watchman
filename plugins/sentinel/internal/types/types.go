@@ -8,9 +8,10 @@ type HookInput struct {
 }
 
 type HookOutput struct {
-	Decision string `json:"decision"`
-	Reason   string `json:"reason,omitempty"`
-	Warning  string `json:"warning,omitempty"`
+	Decision   string      `json:"decision"`
+	Reason     string      `json:"reason,omitempty"`
+	Warning    string      `json:"warning,omitempty"`
+	Violations []Violation `json:"violations,omitempty"`
 }
 
 type EvalRequest struct {
@@ -21,10 +22,11 @@ type EvalRequest struct {
 }
 
 type Violation struct {
-	Rule   string `json:"rule"`
-	File   string `json:"file"`
-	Lines  string `json:"lines"`
-	Detail string `json:"detail"`
+	Rule       string  `json:"rule"`
+	File       string  `json:"file"`
+	Lines      string  `json:"lines"`
+	Detail     string  `json:"detail"`
+	Confidence float64 `json:"confidence"`
 }
 
 type EvalResult struct {
@@ -32,4 +34,5 @@ type EvalResult struct {
 	Reason     string
 	Warning    string
 	Violations []Violation
+	Confidence float64
 }

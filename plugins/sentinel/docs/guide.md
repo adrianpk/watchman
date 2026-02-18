@@ -211,6 +211,7 @@ evaluation:
   default_decision: allow  # If evaluation fails
   max_content_size: 50000  # Max bytes to evaluate
   timeout: 25s             # Per-evaluation timeout
+  threshold: 0.85          # Confidence threshold (see below)
 ```
 
 ### Config File Locations
@@ -228,9 +229,11 @@ anthropic:
   api_key: ${ANTHROPIC_API_KEY}
 ```
 
-## Writing Effective Standards
+## Writing Standards
 
-### Separate Behavior from Code Rules
+Sentinel works with any format - plain text, markdown, bullet points, prose. More structured rules tend to produce fewer false positives, but use whatever works for your project.
+
+### Separate Behavior from Code Rules (Recommended)
 
 Standards files often serve two different audiences:
 
@@ -315,6 +318,50 @@ This way, agents read both files for context, but Sentinel evaluates code only a
 - Wrap errors with context
 ```
 
+## Confidence Threshold
+
+Sentinel uses a confidence-based evaluation system to reduce false positives. For each potential violation, the AI reports its confidence level (0.0-1.0):
+
+| Confidence | Meaning |
+|------------|---------|
+| `1.0` | Explicitly prohibited by standards |
+| `0.7` | Likely violation, requires some interpretation |
+| `0.5` | Ambiguous, could go either way |
+| `<0.5` | Probably not a violation |
+
+### How It Works
+
+1. AI evaluates code against standards
+2. For each violation found, AI reports confidence
+3. If all violations have confidence below threshold → downgrade to `advise`
+4. Only block (`deny`) when at least one violation meets threshold
+
+### Configuration
+
+```yaml
+evaluation:
+  threshold: 0.85  # Default
+```
+
+| Threshold | Use Case |
+|-----------|----------|
+| `0.9` | Very permissive - only block explicit, unambiguous violations |
+| `0.85` | Balanced (default) - block clear violations, warn on interpretations |
+| `0.7` | Stricter - block likely violations even with some interpretation |
+| `0` | Disable confidence - block on any violation the AI finds |
+
+### Example
+
+Standards say: "Assets must live in `./assets/`"
+
+| File | AI Interpretation | Confidence | Result (0.85 threshold) |
+|------|-------------------|------------|-------------------------|
+| `src/logo.png` | Clear violation | 0.95 | **deny** |
+| `assets/migration/001.sql` | Ambiguous - is it IN assets? | 0.6 | advise (warning) |
+| `internal/db/sqlc/gen.go` | "DO NOT EDIT" ≠ "don't commit" | 0.4 | advise (warning) |
+
+The threshold prevents the AI from blocking on forced interpretations of rules.
+
 ## Decisions
 
 Sentinel returns one of three decisions:
@@ -363,6 +410,22 @@ When using fallback, all providers errored. Check:
 - Increase timeout: `timeout: 45s`
 - Use faster model: `gpt-4o-mini` instead of `gpt-4o`
 - Use local Ollama with smaller model
+
+### Too many false positives
+
+The AI may over-interpret rules. Solutions:
+
+1. **Lower the confidence threshold**:
+   ```yaml
+   evaluation:
+     threshold: 0.7  # More permissive (default: 0.85)
+   ```
+
+2. **Separate behavior rules from code rules**: Keep agent instructions in `AGENTS.md`, code standards in `CONVENTIONS.md`. Point Sentinel only at the code standards file.
+
+3. **Be more explicit in standards**: Instead of "assets should not be alongside code", write "files in `assets/**` are correctly located"
+
+4. **Check the violations**: When blocked, look at the confidence reported. Low confidence violations indicate the AI is unsure - consider adjusting your standards to be clearer.
 
 ## Integration with Watchman
 

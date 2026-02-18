@@ -82,7 +82,18 @@ type ollamaResponse struct {
 }
 
 func buildOllamaPrompt(req types.EvalRequest) string {
-	return fmt.Sprintf(`You are a code standards evaluator. Evaluate the action against the provided standards.
+	return fmt.Sprintf(`You are a conservative code standards evaluator.
+
+DECISION GUIDE:
+- DENY: Only for clear, explicit violations (confidence >= 0.9)
+- ADVISE: For ambiguous cases worth reviewing (confidence 0.5-0.9)
+- ALLOW: When compliant or rule doesn't apply (confidence < 0.5)
+
+CRITICAL RULES:
+- Never deny based on interpretation - use advise instead
+- Never extrapolate rules beyond their literal meaning
+- The standards document is the ONLY source of truth
+- When in doubt, advise (warn) rather than deny (block)
 
 ## Standards
 
@@ -98,18 +109,19 @@ Content:
 
 Respond with a JSON object containing:
 - "decision": one of "allow", "advise", or "deny"
-  - "allow" = code is compliant with standards
-  - "advise" = minor issues, warning only
-  - "deny" = violates standards, must be blocked
+  - "allow" = compliant or rule doesn't apply (DEFAULT)
+  - "advise" = ambiguous, worth reviewing but don't block
+  - "deny" = ONLY for clear, explicit violations
 - "warning": advisory note if advise (empty string otherwise)
 - "violations": array of violation objects, each with:
-  - "rule": name of the violated rule (e.g., "Comment violation", "Test naming")
+  - "rule": name of the violated rule
   - "file": filename where violation occurs
   - "lines": line number or range (e.g., "3", "3-4", "N/A")
-  - "detail": specific explanation of what is wrong and how to fix it
+  - "detail": specific explanation
+  - "confidence": number 0.0-1.0 (1.0=explicit violation, 0.7=likely, 0.5=ambiguous, <0.5=not a violation)
 
 Example response:
-{"decision": "deny", "warning": "", "violations": [{"rule": "Comment violation", "file": "namespace.go", "lines": "3-4", "detail": "Multi-line comment on exported type may not add value per standards"}]}
+{"decision": "advise", "warning": "Consider reviewing", "violations": [{"rule": "Naming", "file": "foo.go", "lines": "10", "detail": "Variable name could be clearer", "confidence": 0.6}]}
 
 Respond ONLY with the JSON object, no other text.`, req.Standards, req.ToolName, req.FilePath, req.Content)
 }
